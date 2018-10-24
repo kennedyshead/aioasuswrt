@@ -26,7 +26,8 @@ class SshConnection:
         Connect to the SSH server if not currently connected, otherwise
         use the existing connection.
         """
-        await self.async_init_session()
+        if self._client is None:
+            await self.async_init_session()
         try:
             result = await self._client.run(command)
         except asyncssh.misc.ChannelOpenError:
