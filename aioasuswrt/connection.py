@@ -75,7 +75,7 @@ class TelnetConnection:
         """
         if not self.connected:
             await self.async_connect()
-        await self._writer.write('{}\n'.format(command).encode('ascii'))
+        self._writer.write('{}\n'.format(command).encode('ascii'))
         data = ((await self._reader.readuntil(self._prompt_string)).
                 split(b'\n')[1:-1])
         return [line.decode('utf-8') for line in data]
@@ -85,9 +85,9 @@ class TelnetConnection:
         self._reader, self._writer = await asyncio.open_connection(
             self._host, self._port)
         await self._reader.readuntil(b'login: ')
-        await self._writer.write((self._username + '\n').encode('ascii'))
+        self._writer.write((self._username + '\n').encode('ascii'))
         await self._reader.readuntil(b'Password: ')
-        await self._writer.write((self._password + '\n').encode('ascii'))
-        self._prompt_string = await self._reader.readuntil(
-            b'#').split(b'\n')[-1]
+        self._writer.write((self._password + '\n').encode('ascii'))
+        self._prompt_string = (await self._reader.readuntil(
+            b'#')).split(b'\n')[-1]
         self.connected = True
