@@ -49,8 +49,7 @@ class SshConnection:
             'password': self._password if self._password else None
         }
 
-        if not self._client:
-            self._client = await asyncssh.connect(self._host, **kwargs)
+        self._client = await asyncssh.connect(self._host, **kwargs)
 
 
 class TelnetConnection:
