@@ -1,11 +1,16 @@
 """Moddule for Asuswrt."""
 import logging
+import math
 import re
 from collections import namedtuple
+from datetime import datetime
 
 from aioasuswrt.connection import SshConnection, TelnetConnection
+from aioasuswrt.helpers import convert_size
 
 _LOGGER = logging.getLogger(__name__)
+
+CHANGE_TIME_CACHE_DEFAULT = 5  # Default 60s
 
 _LEASES_CMD = 'cat /var/lib/misc/dnsmasq.leases'
 _LEASES_REGEX = re.compile(
@@ -65,10 +70,18 @@ class AsusWrt:
     """This is the interface class."""
 
     def __init__(self, host, port, use_telnet=False, username=None,
-                 password=None, ssh_key=None, mode='router', require_ip=False):
+                 password=None, ssh_key=None, mode='router', require_ip=False,
+                 time_cache=CHANGE_TIME_CACHE_DEFAULT):
         """Init function."""
         self.require_ip = require_ip
         self.mode = mode
+        self._rx_latest = None
+        self._tx_latest = None
+        self._latest_transfer_check = None
+        self._cache_time = time_cache
+        self._trans_cache_timer = None
+        self._transfer_rates_cache = None
+
         if use_telnet:
             self.connection = TelnetConnection(
                 host, port, username, password)
@@ -153,8 +166,58 @@ class AsusWrt:
                 ret_devices[key] = devices[key]
         return ret_devices
 
-    async def async_get_packets_total(self):
+    async def async_get_packets_total(self, use_cache=True):
         """Retrieve total packets from ASUSWRT."""
+        now = datetime.utcnow()
+        if use_cache and self._trans_cache_timer and self._cache_time > \
+                (now - self._trans_cache_timer).total_seconds():
+            return self._transfer_rates_cache
+
         data = await self.connection.async_run_command(_IFCONFIG_CMD)
+        _LOGGER.info(data)
         result = _IFCONFIG_REGEX.findall(data[0])
-        return result
+        _LOGGER.info(result)
+        ret = [int(value) for value in result]
+        self._transfer_rates_cache = ret
+        self._trans_cache_timer = now
+        return ret
+
+    async def async_get_rx(self, use_cache=True):
+        """Get current RX total given in bytes."""
+        data = await self.async_get_packets_total(use_cache)
+        return data[0]
+
+    async def async_get_tx(self, use_cache=True):
+        """Get current RX total given in bytes."""
+        data = await self.async_get_packets_total(use_cache)
+        return data[1]
+
+    async def async_get_current_transfer_rates(self, use_cache=True):
+        """Gets current transfer rates calculated in per second in bytes."""
+        now = datetime.utcnow()
+        data = await self.async_get_packets_total(use_cache)
+        if self._rx_latest is None or self._tx_latest is None:
+            self._latest_transfer_check = now
+            self._rx_latest = data[0]
+            self._tx_latest = data[1]
+            return
+
+        time_diff = now - self._latest_transfer_check
+        self._latest_transfer_check = now
+
+        rx = data[0] - self._rx_latest
+        tx = data[1] - self._tx_latest
+
+        self._rx_latest = data[0]
+        self._tx_latest = data[1]
+
+        return (
+            math.ceil(rx / time_diff.total_seconds()) if rx > 0 else 0,
+            math.ceil(tx / time_diff.total_seconds()) if tx > 0 else 0)
+
+    async def async_current_transfer_human_readable(
+            self, use_cache=True):
+        """Gets current transfer rates in a human readable format."""
+        rx, tx = await self.async_get_current_transfer_rates(use_cache)
+
+        return "%s/s" % convert_size(rx), "%s/s" % convert_size(tx)
