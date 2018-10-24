@@ -1,7 +1,10 @@
 """Module for connections."""
 import asyncio
+import logging
 
 import asyncssh
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class SshConnection:
@@ -17,14 +20,23 @@ class SshConnection:
         self._ssh_key = ssh_key
         self._client = None
 
-    async def async_run_command(self, command):
+    async def async_run_command(self, command, retry=False):
         """Run commands through an SSH connection.
 
         Connect to the SSH server if not currently connected, otherwise
         use the existing connection.
         """
         await self.async_init_session()
-        result = await self._client.run(command)
+        try:
+            result = await self._client.run(command)
+        except asyncssh.misc.ChannelOpenError:
+            if not retry:
+                await self.async_init_session()
+                return self.async_run_command(command, retry=True)
+            else:
+                _LOGGER.error("No connection to host")
+                return []
+
         return result.stdout.split('\n')
 
     async def async_init_session(self):

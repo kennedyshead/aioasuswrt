@@ -40,6 +40,9 @@ _ARP_REGEX = re.compile(
     r'\s' +
     r'.*')
 
+_IFCONFIG_CMD = 'ifconfig eth0 |grep bytes'
+_IFCONFIG_REGEX = re.compile(
+    r'(?P<data>[\d]{4,})')
 Device = namedtuple('Device', ['mac', 'ip', 'name'])
 
 
@@ -149,3 +152,9 @@ class AsusWrt:
             if not self.require_ip or devices[key].ip is not None:
                 ret_devices[key] = devices[key]
         return ret_devices
+
+    async def async_get_packets_total(self):
+        """Retrieve total packets from ASUSWRT."""
+        data = await self.connection.async_run_command(_IFCONFIG_CMD)
+        result = _IFCONFIG_REGEX.findall(data[0])
+        return result
