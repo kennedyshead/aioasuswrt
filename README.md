@@ -1,4 +1,4 @@
-![Build status](https://travis-ci.org/kennedyshead/aioasuswrt/settings#)
+[![Build Status](https://travis-ci.org/kennedyshead/aioasuswrt.svg?branch=master)](https://travis-ci.org/kennedyshead/aioasuswrt)
 
 Small wrapper for asuswrt.
 
