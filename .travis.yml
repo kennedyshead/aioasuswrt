@@ -1,0 +1,12 @@
+sudo: false
+language: python
+python:
+- '3.7'
+before_install:
+- pip install --upgrade pip setuptools
+- pip --version
+install:
+- python setup.py -q install
+- python setup.py sdist
+script:
+- python setup.py test
