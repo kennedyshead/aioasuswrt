@@ -27,7 +27,8 @@ IFCONFIG_TX = 245515000
 WL_DATA = [
     'assoclist 01:02:03:04:06:08\r',
     'assoclist 08:09:10:11:12:14\r',
-    'assoclist 08:09:10:11:12:15\r'
+    'assoclist 08:09:10:11:12:15\r',
+    'assoclist AB:CD:DE:AB:CD:EF\r'
 ]
 
 WL_DEVICES = {
@@ -36,12 +37,15 @@ WL_DEVICES = {
     '08:09:10:11:12:14': Device(
         mac='08:09:10:11:12:14', ip=None, name=None),
     '08:09:10:11:12:15': Device(
-        mac='08:09:10:11:12:15', ip=None, name=None)
+        mac='08:09:10:11:12:15', ip=None, name=None),
+    'AB:CD:DE:AB:CD:EF': Device(
+        mac='AB:CD:DE:AB:CD:EF', ip=None, name=None)
 }
 
 ARP_DATA = [
     '? (123.123.123.125) at 01:02:03:04:06:08 [ether]  on eth0\r',
     '? (123.123.123.126) at 08:09:10:11:12:14 [ether]  on br0\r',
+    '? (123.123.123.128) at AB:CD:DE:AB:CD:EF [ether]  on br0\r',
     '? (123.123.123.127) at <incomplete>  on br0\r',
 ]
 
@@ -49,14 +53,17 @@ ARP_DEVICES = {
     '01:02:03:04:06:08': Device(
         mac='01:02:03:04:06:08', ip='123.123.123.125', name=None),
     '08:09:10:11:12:14': Device(
-        mac='08:09:10:11:12:14', ip='123.123.123.126', name=None)
+        mac='08:09:10:11:12:14', ip='123.123.123.126', name=None),
+    'AB:CD:DE:AB:CD:EF': Device(
+        mac='AB:CD:DE:AB:CD:EF', ip='123.123.123.128', name=None)
 }
 
 NEIGH_DATA = [
     '123.123.123.125 dev eth0 lladdr 01:02:03:04:06:08 REACHABLE\r',
     '123.123.123.126 dev br0 lladdr 08:09:10:11:12:14 REACHABLE\r',
+    '123.123.123.128 dev br0 lladdr ab:cd:de:ab:cd:ef REACHABLE\r',
     '123.123.123.127 dev br0  FAILED\r',
-    '123.123.123.128 dev br0 lladdr 08:09:15:15:15:15 DELAY\r',
+    '123.123.123.129 dev br0 lladdr 08:09:15:15:15:15 DELAY\r',
     'fe80::feff:a6ff:feff:12ff dev br0 lladdr fc:ff:a6:ff:12:ff STALE\r',
 ]
 
@@ -64,7 +71,9 @@ NEIGH_DEVICES = {
     '01:02:03:04:06:08': Device(
         mac='01:02:03:04:06:08', ip='123.123.123.125', name=None),
     '08:09:10:11:12:14': Device(
-        mac='08:09:10:11:12:14', ip='123.123.123.126', name=None)
+        mac='08:09:10:11:12:14', ip='123.123.123.126', name=None),
+    'AB:CD:DE:AB:CD:EF': Device(
+        mac='AB:CD:DE:AB:CD:EF', ip='123.123.123.128', name=None)
 }
 
 LEASES_DATA = [
@@ -91,7 +100,9 @@ WAKE_DEVICES_AP = {
     '01:02:03:04:06:08': Device(
         mac='01:02:03:04:06:08', ip='123.123.123.125', name=None),
     '08:09:10:11:12:14': Device(
-        mac='08:09:10:11:12:14', ip='123.123.123.126', name=None)
+        mac='08:09:10:11:12:14', ip='123.123.123.126', name=None),
+    'AB:CD:DE:AB:CD:EF': Device(
+        mac='AB:CD:DE:AB:CD:EF', ip='123.123.123.128', name=None)
 }
 
 WAKE_DEVICES_NO_IP = {
@@ -100,7 +111,9 @@ WAKE_DEVICES_NO_IP = {
     '08:09:10:11:12:14': Device(
         mac='08:09:10:11:12:14', ip='123.123.123.126', name=None),
     '08:09:10:11:12:15': Device(
-        mac='08:09:10:11:12:15', ip=None, name=None)
+        mac='08:09:10:11:12:15', ip=None, name=None),
+    'AB:CD:DE:AB:CD:EF': Device(
+        mac='AB:CD:DE:AB:CD:EF', ip='123.123.123.128', name=None)
 }
 
 
