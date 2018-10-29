@@ -1,3 +1,5 @@
+![Build status](https://travis-ci.org/kennedyshead/aioasuswrt/settings#)
+
 Small wrapper for asuswrt.
 
 Help neede for tests, just open a PR!
