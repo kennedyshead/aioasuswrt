@@ -19,11 +19,11 @@ setup(
     name='aioasuswrt',
     version=VERSION,
     description='Api wrapper for Asuswrt https://www.asus.com/ASUSWRT/',
-    setup_requires=['setuptools-markdown'],
+    setup_requires=['setuptools-markdown',
+                    'pytest-runner'],
     long_description_markdown_filename='README.md',
     url='https://github.com/kennedyshead/aioasuswrt',
-    download_url=
-    'https://github.com/kennedyshead/aioasuswrt/archive/%s.tar.gz' % VERSION,
+    download_url='https://github.com/kennedyshead/aioasuswrt/archive/%s.tar.gz' % VERSION,
     author=__author__,
     author_email='magnusknutas@gmail.com',
     classifiers=[
@@ -37,8 +37,11 @@ setup(
     packages=find_packages(exclude=['contrib', 'docs', 'tests']),
     install_requires=['asyncssh'],
     test_suite='tests',
+    tests_require=['pytest',
+                   'pytest-cov',
+                   'pytest-mock',
+                   'pytest-asyncio'],
     extras_require={
         'dev': ['check-manifest'],
-        'test': ['coverage', 'mock'],
     },
 )

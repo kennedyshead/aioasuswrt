@@ -1,6 +1,28 @@
+import asyncio
+import pytest
+import pytest_asyncio.plugin
+import re
 from unittest import TestCase
+from mock import mock
+from aioasuswrt.connection import SshConnection, TelnetConnection
+from aioasuswrt.asuswrt import (
+    AsusWrt,
+    _ARP_REGEX,
+    _LEASES_CMD,
+    _WL_CMD,
+    _IP_NEIGH_CMD,
+    _ARP_CMD,
+    _IFCONFIG_CMD,
+    Device,
+    _parse_lines
+)
 
-from aioasuswrt.asuswrt import Device, _parse_lines
+IFCONFIG_DATA = [
+    'RX bytes:2787093240 (2.5 GiB)  TX bytes:245515000 (234.1 MiB)'
+]
+
+IFCONFIG_RX = 2787093240
+IFCONFIG_TX = 245515000
 
 WL_DATA = [
     'assoclist 01:02:03:04:06:08\r',
@@ -82,400 +104,138 @@ WAKE_DEVICES_NO_IP = {
 }
 
 
-def test_parse_lines_wrong_input(self):
+def RunCommandMock(command, *args, **kwargs):
+    f = asyncio.Future()
+    if command == _WL_CMD:
+        f.set_result(WL_DATA)
+        return f
+    if command == _LEASES_CMD:
+        f.set_result(LEASES_DATA)
+        return f
+    if command == _IP_NEIGH_CMD:
+        f.set_result(NEIGH_DATA)
+        return f
+    if command == _ARP_CMD:
+        f.set_result(ARP_DATA)
+        return f
+    if command == _IFCONFIG_CMD:
+        f.set_result(IFCONFIG_DATA)
+        return f
+    raise Exception("Unhandled command: %s" % command)
+
+
+def RunCommandEmptyMock(command, *args, **kwargs):
+    f = asyncio.Future()
+    f.set_result("")
+    return f
+
+
+def test_parse_lines_wrong_input():
     """Testing parse lines."""
-    output = _parse_lines("asdf asdfdfsafad", _ARP_REGEX)
-    self.assertEqual(output, [])
+    output = _parse_lines("asdf asdfdfsafad", re.compile(r'abc123'))
+    assert output == []
 
 
-def test_get_device_name(self):
-    """Test for getting name."""
-    scanner = async_get_scanner(self.hass, VALID_CONFIG_ROUTER_SSH)
-    scanner.last_results = WAKE_DEVICES
-    self.assertEqual('TV', scanner.get_device_name('01:02:03:04:06:08'))
-    self.assertEqual(None, scanner.get_device_name('01:02:03:04:08:08'))
+@pytest.mark.asyncio
+async def test_get_wl(event_loop, mocker):
+    """Testing wl."""
+    mocker.patch(
+        'aioasuswrt.connection.SshConnection.async_run_command',
+        side_effect=RunCommandMock)
+    scanner = AsusWrt(host="localhost", port=22)
+    devices = await scanner.async_get_wl()
+    assert WL_DEVICES == devices
 
 
-def test_scan_devices(self):
-    """Test for scan devices."""
-    scanner = async_get_scanner(self.hass, VALID_CONFIG_ROUTER_SSH)
-    scanner.last_results = WAKE_DEVICES
-    self.assertEqual(list(WAKE_DEVICES), scanner.scan_devices())
+@pytest.mark.asyncio
+async def test_get_wl_empty(event_loop, mocker):
+    """Testing wl."""
+    mocker.patch(
+        'aioasuswrt.connection.SshConnection.async_run_command',
+        side_effect=RunCommandEmptyMock)
+    scanner = AsusWrt(host="localhost", port=22)
+    devices = await scanner.async_get_wl()
+    assert {} == devices
 
 
-class TestCaseAsus(TestCase):
-
-    def test_get_asuswrt_data(self):
-        """Test asuswrt data fetch."""
-        scanner = async_get_scanner(self.hass, VALID_CONFIG_ROUTER_SSH)
-        scanner._get_wl = mock.Mock()
-        scanner._get_arp = mock.Mock()
-        scanner._get_neigh = mock.Mock()
-        scanner._get_leases = mock.Mock()
-        scanner._get_wl.return_value = WL_DEVICES
-        scanner._get_arp.return_value = ARP_DEVICES
-        scanner._get_neigh.return_value = NEIGH_DEVICES
-        scanner._get_leases.return_value = LEASES_DEVICES
-        self.assertEqual(WAKE_DEVICES, scanner.get_asuswrt_data())
-
-    def test_get_asuswrt_data_ap(self):
-        """Test for get asuswrt_data in ap mode."""
-        conf = VALID_CONFIG_ROUTER_SSH.copy()[DOMAIN]
-        conf[CONF_MODE] = 'ap'
-        scanner = AsusWrtDeviceScanner(conf)
-        scanner._get_wl = mock.Mock()
-        scanner._get_arp = mock.Mock()
-        scanner._get_neigh = mock.Mock()
-        scanner._get_leases = mock.Mock()
-        scanner._get_wl.return_value = WL_DEVICES
-        scanner._get_arp.return_value = ARP_DEVICES
-        scanner._get_neigh.return_value = NEIGH_DEVICES
-        scanner._get_leases.return_value = LEASES_DEVICES
-        self.assertEqual(WAKE_DEVICES_AP, scanner.get_asuswrt_data())
-
-    def test_get_asuswrt_data_no_ip(self):
-        """Test for get asuswrt_data and not requiring ip."""
-        conf = VALID_CONFIG_ROUTER_SSH.copy()[DOMAIN]
-        conf[CONF_REQUIRE_IP] = False
-        scanner = AsusWrtDeviceScanner(conf)
-        scanner._get_wl = mock.Mock()
-        scanner._get_arp = mock.Mock()
-        scanner._get_neigh = mock.Mock()
-        scanner._get_leases = mock.Mock()
-        scanner._get_wl.return_value = WL_DEVICES
-        scanner._get_arp.return_value = ARP_DEVICES
-        scanner._get_neigh.return_value = NEIGH_DEVICES
-        scanner._get_leases.return_value = LEASES_DEVICES
-        self.assertEqual(WAKE_DEVICES_NO_IP, scanner.get_asuswrt_data())
-
-    def test_update_info(self):
-        """Test for update info."""
-        scanner = async_get_scanner(self.hass, VALID_CONFIG_ROUTER_SSH)
-        scanner.get_asuswrt_data = mock.Mock()
-        scanner.get_asuswrt_data.return_value = WAKE_DEVICES
-        self.assertTrue(scanner._update_info())
-        self.assertTrue(scanner.last_results, WAKE_DEVICES)
-        scanner.success_init = False
-        self.assertFalse(scanner._update_info())
-
-    @mock.patch(
-        'homeassistant.components.device_tracker.asuswrt.SshConnection')
-    def test_get_wl(self, mocked_ssh):
-        """Testing wl."""
-        mocked_ssh.run_command.return_value = WL_DATA
-        scanner = async_get_scanner(self.hass, VALID_CONFIG_ROUTER_SSH)
-        scanner.connection = mocked_ssh
-        self.assertEqual(WL_DEVICES, scanner._get_wl())
-        mocked_ssh.run_command.return_value = ''
-        self.assertEqual({}, scanner._get_wl())
-
-    @mock.patch(
-        'homeassistant.components.device_tracker.asuswrt.SshConnection')
-    def test_get_arp(self, mocked_ssh):
-        """Testing arp."""
-        mocked_ssh.run_command.return_value = ARP_DATA
-
-        scanner = async_get_scanner(self.hass, VALID_CONFIG_ROUTER_SSH)
-        scanner.connection = mocked_ssh
-        self.assertEqual(ARP_DEVICES, scanner._get_arp())
-        mocked_ssh.run_command.return_value = ''
-        self.assertEqual({}, scanner._get_arp())
-
-    @mock.patch(
-        'homeassistant.components.device_tracker.asuswrt.SshConnection')
-    def test_get_neigh(self, mocked_ssh):
-        """Testing neigh."""
-        mocked_ssh.run_command.return_value = NEIGH_DATA
-
-        scanner = async_get_scanner(self.hass, VALID_CONFIG_ROUTER_SSH)
-        scanner.connection = mocked_ssh
-        self.assertEqual(NEIGH_DEVICES, scanner._get_neigh(ARP_DEVICES.copy()))
-        self.assertEqual(NEIGH_DEVICES, scanner._get_neigh({
-            'UN:KN:WN:DE:VI:CE': Device('UN:KN:WN:DE:VI:CE', None, None),
-        }))
-        mocked_ssh.run_command.return_value = ''
-        self.assertEqual({}, scanner._get_neigh(ARP_DEVICES.copy()))
-
-    @mock.patch(
-        'homeassistant.components.device_tracker.asuswrt.SshConnection')
-    def test_get_leases(self, mocked_ssh):
-        """Testing leases."""
-        mocked_ssh.run_command.return_value = LEASES_DATA
-
-        scanner = async_get_scanner(self.hass, VALID_CONFIG_ROUTER_SSH)
-        scanner.connection = mocked_ssh
-        self.assertEqual(
-            LEASES_DEVICES, scanner._get_leases(NEIGH_DEVICES.copy()))
-        mocked_ssh.run_command.return_value = ''
-        self.assertEqual({}, scanner._get_leases(NEIGH_DEVICES.copy()))
+@pytest.mark.asyncio
+async def test_async_get_leases(event_loop, mocker):
+    """Testing leases."""
+    mocker.patch(
+        'aioasuswrt.connection.SshConnection.async_run_command',
+        side_effect=RunCommandMock)
+    scanner = AsusWrt(host="localhost", port=22)
+    data = await scanner.async_get_leases(NEIGH_DEVICES.copy())
+    assert LEASES_DEVICES == data
 
 
-    @mock.patch(
-        'homeassistant.components.device_tracker.asuswrt.AsusWrtDeviceScanner',
-        return_value=mock.MagicMock())
-    def test_get_scanner_with_pubkey_no_password(self, asuswrt_mock):
-        """Test creating an AsusWRT scanner with a pubkey and no password."""
-        conf_dict = {
-            device_tracker.DOMAIN: {
-                CONF_PLATFORM: 'asuswrt',
-                CONF_HOST: 'fake_host',
-                CONF_USERNAME: 'fake_user',
-                CONF_PUB_KEY: FAKEFILE,
-                CONF_TRACK_NEW: True,
-                CONF_CONSIDER_HOME: timedelta(seconds=180),
-                CONF_NEW_DEVICE_DEFAULTS: {
-                    CONF_TRACK_NEW: True,
-                    CONF_AWAY_HIDE: False
-                }
-            }
-        }
-
-        with assert_setup_component(1, DOMAIN):
-            assert setup_component(self.hass, DOMAIN, conf_dict)
-
-        conf_dict[DOMAIN][CONF_MODE] = 'router'
-        conf_dict[DOMAIN][CONF_PROTOCOL] = 'ssh'
-        conf_dict[DOMAIN][CONF_PORT] = 22
-        self.assertEqual(asuswrt_mock.call_count, 1)
-        self.assertEqual(asuswrt_mock.call_args, mock.call(conf_dict[DOMAIN]))
-
-    def test_ssh_login_with_pub_key(self):
-        """Test that login is done with pub_key when configured to."""
-        ssh = mock.MagicMock()
-        ssh_mock = mock.patch('pexpect.pxssh.pxssh', return_value=ssh)
-        ssh_mock.start()
-        self.addCleanup(ssh_mock.stop)
-        conf_dict = PLATFORM_SCHEMA({
-            CONF_PLATFORM: 'asuswrt',
-            CONF_HOST: 'fake_host',
-            CONF_USERNAME: 'fake_user',
-            CONF_PUB_KEY: FAKEFILE
-        })
-        update_mock = mock.patch(
-            'homeassistant.components.device_tracker.asuswrt.'
-            'AsusWrtDeviceScanner.get_asuswrt_data')
-        update_mock.start()
-        self.addCleanup(update_mock.stop)
-        asuswrt = device_tracker.asuswrt.AsusWrtDeviceScanner(conf_dict)
-        asuswrt.connection.run_command('ls')
-        self.assertEqual(ssh.login.call_count, 1)
-        self.assertEqual(
-            ssh.login.call_args,
-            mock.call('fake_host', 'fake_user', quiet=False,
-                      ssh_key=FAKEFILE, port=22)
-        )
-
-    def test_ssh_login_with_password(self):
-        """Test that login is done with password when configured to."""
-        ssh = mock.MagicMock()
-        ssh_mock = mock.patch('pexpect.pxssh.pxssh', return_value=ssh)
-        ssh_mock.start()
-        self.addCleanup(ssh_mock.stop)
-        conf_dict = PLATFORM_SCHEMA({
-            CONF_PLATFORM: 'asuswrt',
-            CONF_HOST: 'fake_host',
-            CONF_USERNAME: 'fake_user',
-            CONF_PASSWORD: 'fake_pass'
-        })
-        update_mock = mock.patch(
-            'homeassistant.components.device_tracker.asuswrt.'
-            'AsusWrtDeviceScanner.get_asuswrt_data')
-        update_mock.start()
-        self.addCleanup(update_mock.stop)
-        asuswrt = device_tracker.asuswrt.AsusWrtDeviceScanner(conf_dict)
-        asuswrt.connection.run_command('ls')
-        self.assertEqual(ssh.login.call_count, 1)
-        self.assertEqual(
-            ssh.login.call_args,
-            mock.call('fake_host', 'fake_user', quiet=False,
-                      password='fake_pass', port=22)
-        )
-
-    def test_ssh_login_without_password_or_pubkey(self):
-        """Test that login is not called without password or pub_key."""
-        ssh = mock.MagicMock()
-        ssh_mock = mock.patch('pexpect.pxssh.pxssh', return_value=ssh)
-        ssh_mock.start()
-        self.addCleanup(ssh_mock.stop)
-
-        conf_dict = {
-            CONF_PLATFORM: 'asuswrt',
-            CONF_HOST: 'fake_host',
-            CONF_USERNAME: 'fake_user',
-        }
-
-        with self.assertRaises(vol.Invalid):
-            conf_dict = PLATFORM_SCHEMA(conf_dict)
-
-        update_mock = mock.patch(
-            'homeassistant.components.device_tracker.asuswrt.'
-            'AsusWrtDeviceScanner.get_asuswrt_data')
-        update_mock.start()
-        self.addCleanup(update_mock.stop)
-
-        with assert_setup_component(0, DOMAIN):
-            assert setup_component(self.hass, DOMAIN,
-                                   {DOMAIN: conf_dict})
-        ssh.login.assert_not_called()
-
-    def test_telnet_login_with_password(self):
-        """Test that login is done with password when configured to."""
-        telnet = mock.MagicMock()
-        telnet_mock = mock.patch('telnetlib.Telnet', return_value=telnet)
-        telnet_mock.start()
-        self.addCleanup(telnet_mock.stop)
-        conf_dict = PLATFORM_SCHEMA({
-            CONF_PLATFORM: 'asuswrt',
-            CONF_PROTOCOL: 'telnet',
-            CONF_HOST: 'fake_host',
-            CONF_USERNAME: 'fake_user',
-            CONF_PASSWORD: 'fake_pass'
-        })
-        update_mock = mock.patch(
-            'homeassistant.components.device_tracker.asuswrt.'
-            'AsusWrtDeviceScanner.get_asuswrt_data')
-        update_mock.start()
-        self.addCleanup(update_mock.stop)
-        asuswrt = device_tracker.asuswrt.AsusWrtDeviceScanner(conf_dict)
-        asuswrt.connection.run_command('ls')
-        self.assertEqual(telnet.read_until.call_count, 4)
-        self.assertEqual(telnet.write.call_count, 3)
-        self.assertEqual(
-            telnet.read_until.call_args_list[0],
-            mock.call(b'login: ')
-        )
-        self.assertEqual(
-            telnet.write.call_args_list[0],
-            mock.call(b'fake_user\n')
-        )
-        self.assertEqual(
-            telnet.read_until.call_args_list[1],
-            mock.call(b'Password: ')
-        )
-        self.assertEqual(
-            telnet.write.call_args_list[1],
-            mock.call(b'fake_pass\n')
-        )
-        self.assertEqual(
-            telnet.read_until.call_args_list[2],
-            mock.call(b'#')
-        )
-
-    def test_telnet_login_without_password(self):
-        """Test that login is not called without password or pub_key."""
-        telnet = mock.MagicMock()
-        telnet_mock = mock.patch('telnetlib.Telnet', return_value=telnet)
-        telnet_mock.start()
-        self.addCleanup(telnet_mock.stop)
-
-        conf_dict = {
-            CONF_PLATFORM: 'asuswrt',
-            CONF_PROTOCOL: 'telnet',
-            CONF_HOST: 'fake_host',
-            CONF_USERNAME: 'fake_user',
-        }
-
-        with self.assertRaises(vol.Invalid):
-            conf_dict = PLATFORM_SCHEMA(conf_dict)
-
-        update_mock = mock.patch(
-            'homeassistant.components.device_tracker.asuswrt.'
-            'AsusWrtDeviceScanner.get_asuswrt_data')
-        update_mock.start()
-        self.addCleanup(update_mock.stop)
-
-        with assert_setup_component(0, DOMAIN):
-            assert setup_component(self.hass, DOMAIN,
-                                   {DOMAIN: conf_dict})
-        telnet.login.assert_not_called()
+@pytest.mark.asyncio
+async def test_get_arp(event_loop, mocker):
+    """Testing arp."""
+    mocker.patch(
+        'aioasuswrt.connection.SshConnection.async_run_command',
+        side_effect=RunCommandMock)
+    scanner = AsusWrt(host="localhost", port=22)
+    data = await scanner.async_get_arp()
+    assert ARP_DEVICES == data
 
 
-@pytest.mark.skip(
-    reason="These tests are performing actual failing network calls. They "
-    "need to be cleaned up before they are re-enabled. They're frequently "
-    "failing in Travis.")
-class TestSshConnection(unittest.TestCase):
-    """Testing SshConnection."""
-
-    def setUp(self):
-        """Set up test env."""
-        self.connection = SshConnection(
-            'fake', 'fake', 'fake', 'fake', 'fake')
-        self.connection._connected = True
-
-    def test_run_command_exception_eof(self):
-        """Testing exception in run_command."""
-        from pexpect import exceptions
-        self.connection._ssh = mock.Mock()
-        self.connection._ssh.sendline = mock.Mock()
-        self.connection._ssh.sendline.side_effect = exceptions.EOF('except')
-        self.connection.run_command('test')
-        self.assertFalse(self.connection._connected)
-        self.assertIsNone(self.connection._ssh)
-
-    def test_run_command_exception_pxssh(self):
-        """Testing exception in run_command."""
-        from pexpect import pxssh
-        self.connection._ssh = mock.Mock()
-        self.connection._ssh.sendline = mock.Mock()
-        self.connection._ssh.sendline.side_effect = pxssh.ExceptionPxssh(
-            'except')
-        self.connection.run_command('test')
-        self.assertFalse(self.connection._connected)
-        self.assertIsNone(self.connection._ssh)
-
-    def test_run_command_assertion_error(self):
-        """Testing exception in run_command."""
-        self.connection._ssh = mock.Mock()
-        self.connection._ssh.sendline = mock.Mock()
-        self.connection._ssh.sendline.side_effect = AssertionError('except')
-        self.connection.run_command('test')
-        self.assertFalse(self.connection._connected)
-        self.assertIsNone(self.connection._ssh)
+@pytest.mark.asyncio
+async def test_get_neigh(event_loop, mocker):
+    """Testing neigh."""
+    mocker.patch(
+        'aioasuswrt.connection.SshConnection.async_run_command',
+        side_effect=RunCommandMock)
+    scanner = AsusWrt(host="localhost", port=22)
+    data = await scanner.async_get_neigh(NEIGH_DEVICES.copy())
+    assert NEIGH_DEVICES == data
 
 
-@pytest.mark.skip(
-    reason="These tests are performing actual failing network calls. They "
-    "need to be cleaned up before they are re-enabled. They're frequently "
-    "failing in Travis.")
-class TestTelnetConnection(unittest.TestCase):
-    """Testing TelnetConnection."""
+@pytest.mark.asyncio
+async def test_get_connected_devices_ap(event_loop, mocker):
+    """Test for get asuswrt_data in ap mode."""
+    mocker.patch(
+        'aioasuswrt.connection.SshConnection.async_run_command',
+        side_effect=RunCommandMock)
+    scanner = AsusWrt(host="localhost", port=22, mode='ap', require_ip=True)
+    data = await scanner.async_get_connected_devices()
+    assert WAKE_DEVICES_AP == data
 
-    def setUp(self):
-        """Set up test env."""
-        self.connection = TelnetConnection(
-            'fake', 'fake', 'fake', 'fake')
-        self.connection._connected = True
 
-    def test_run_command_exception_eof(self):
-        """Testing EOFException in run_command."""
-        self.connection._telnet = mock.Mock()
-        self.connection._telnet.write = mock.Mock()
-        self.connection._telnet.write.side_effect = EOFError('except')
-        self.connection.run_command('test')
-        self.assertFalse(self.connection._connected)
+@pytest.mark.asyncio
+async def test_get_connected_devices_no_ip(event_loop, mocker):
+    """Test for get asuswrt_data and not requiring ip."""
+    mocker.patch(
+        'aioasuswrt.connection.SshConnection.async_run_command',
+        side_effect=RunCommandMock)
+    scanner = AsusWrt(host="localhost", port=22, mode='ap', require_ip=False)
+    data = await scanner.async_get_connected_devices()
+    assert WAKE_DEVICES_NO_IP == data
 
-    def test_run_command_exception_connection_refused(self):
-        """Testing ConnectionRefusedError in run_command."""
-        self.connection._telnet = mock.Mock()
-        self.connection._telnet.write = mock.Mock()
-        self.connection._telnet.write.side_effect = ConnectionRefusedError(
-            'except')
-        self.connection.run_command('test')
-        self.assertFalse(self.connection._connected)
 
-    def test_run_command_exception_gaierror(self):
-        """Testing socket.gaierror in run_command."""
-        self.connection._telnet = mock.Mock()
-        self.connection._telnet.write = mock.Mock()
-        self.connection._telnet.write.side_effect = socket.gaierror('except')
-        self.connection.run_command('test')
-        self.assertFalse(self.connection._connected)
+@pytest.mark.asyncio
+async def test_get_packets_total(event_loop, mocker):
+    """Test getting packet totals."""
+    mocker.patch(
+        'aioasuswrt.connection.SshConnection.async_run_command',
+        side_effect=RunCommandMock)
+    scanner = AsusWrt(host="localhost", port=22, mode='ap', require_ip=False)
+    data = await scanner.async_get_tx(use_cache=False)
+    assert IFCONFIG_TX == data
+    data = await scanner.async_get_rx(use_cache=False)
+    assert IFCONFIG_RX == data
 
-    def test_run_command_exception_oserror(self):
-        """Testing OSError in run_command."""
-        self.connection._telnet = mock.Mock()
-        self.connection._telnet.write = mock.Mock()
-        self.connection._telnet.write.side_effect = OSError('except')
-        self.connection.run_command('test')
-        self.assertFalse(self.connection._connected)
+
+@pytest.mark.asyncio
+async def test_get_current_transfer_rates(event_loop, mocker):
+    """Test getting packet totals."""
+    mocker.patch(
+        'aioasuswrt.connection.SshConnection.async_run_command',
+        side_effect=RunCommandMock)
+    scanner = AsusWrt(host="localhost", port=22, mode='ap', require_ip=False)
+    # call it once to set the values
+    await scanner.async_get_current_transfer_rates(use_cache=True)
+
+    # now check if its good
+    data = await scanner.async_get_current_transfer_rates(use_cache=True)
+    assert (0, 0) == data
