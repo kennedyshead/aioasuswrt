@@ -27,13 +27,13 @@ class SshConnection:
         Connect to the SSH server if not currently connected, otherwise
         use the existing connection.
         """
-        if self._client is None:
-            await self.async_init_session()
+        if not self.is_connected:
+            await self.async_connect()
         try:
             result = await self._client.run(command)
         except asyncssh.misc.ChannelOpenError:
             if not retry:
-                await self.async_init_session()
+                await self.async_connect()
                 return self.async_run_command(command, retry=True)
             else:
                 self._connected = False
@@ -48,7 +48,7 @@ class SshConnection:
         """Do we have a connection."""
         return self._connected
 
-    async def async_init_session(self):
+    async def async_connect(self):
         """Fetches the client or creates a new one."""
 
         kwargs = {
@@ -60,6 +60,7 @@ class SshConnection:
         }
 
         self._client = await asyncssh.connect(self._host, **kwargs)
+        self._connected = True
 
 
 class TelnetConnection:

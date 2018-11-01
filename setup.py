@@ -13,7 +13,7 @@ from os import path
 here = path.abspath(path.dirname(__file__))
 
 __author__ = 'Magnus Knutas'
-VERSION = '1.1.3'
+VERSION = '1.1.4'
 
 setup(
     name='aioasuswrt',
