@@ -221,3 +221,7 @@ class AsusWrt:
         rx, tx = await self.async_get_current_transfer_rates(use_cache)
 
         return "%s/s" % convert_size(rx), "%s/s" % convert_size(tx)
+
+    @property
+    def is_connected(self):
+        return self.connection.is_connected

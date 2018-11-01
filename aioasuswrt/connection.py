@@ -13,6 +13,7 @@ class SshConnection:
     def __init__(self, host, port, username, password, ssh_key):
         """Initialize the SSH connection properties."""
 
+        self._connected = False
         self._host = host
         self._port = port
         self._username = username
@@ -35,10 +36,17 @@ class SshConnection:
                 await self.async_init_session()
                 return self.async_run_command(command, retry=True)
             else:
+                self._connected = False
                 _LOGGER.error("No connection to host")
                 return []
 
+        self._connected = True
         return result.stdout.split('\n')
+
+    @property
+    def is_connected(self):
+        """Do we have a connection."""
+        return self._connected
 
     async def async_init_session(self):
         """Fetches the client or creates a new one."""
@@ -67,14 +75,14 @@ class TelnetConnection:
         self._username = username
         self._password = password
         self._prompt_string = None
-        self.connected = False
+        self._connected = False
 
     async def async_run_command(self, command):
         """Run a command through a Telnet connection.
         Connect to the Telnet server if not currently connected, otherwise
         use the existing connection.
         """
-        if not self.connected:
+        if not self._connected:
             await self.async_connect()
         self._writer.write('{}\n'.format(command).encode('ascii'))
         data = ((await self._reader.readuntil(self._prompt_string)).
@@ -91,4 +99,9 @@ class TelnetConnection:
         self._writer.write((self._password + '\n').encode('ascii'))
         self._prompt_string = (await self._reader.readuntil(
             b'#')).split(b'\n')[-1]
-        self.connected = True
+        self._connected = True
+
+    @property
+    def is_connected(self):
+        """Do we have a connection."""
+        return self._connected
