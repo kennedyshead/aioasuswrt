@@ -48,6 +48,9 @@ _ARP_REGEX = re.compile(
 _IFCONFIG_CMD = 'ifconfig eth0 |grep bytes'
 _IFCONFIG_REGEX = re.compile(
     r'(?P<data>[\d]{4,})')
+
+_IP_LINK_CMD = "ip -rc 1024 -s link"
+
 Device = namedtuple('Device', ['mac', 'ip', 'name'])
 
 
@@ -173,14 +176,18 @@ class AsusWrt:
                 (now - self._trans_cache_timer).total_seconds():
             return self._transfer_rates_cache
 
-        data = await self.connection.async_run_command(_IFCONFIG_CMD)
+        data = await self.connection.async_run_command(_IP_LINK_CMD)
         _LOGGER.info(data)
-        result = _IFCONFIG_REGEX.findall(data[0])
-        _LOGGER.info(result)
-        ret = [int(value) for value in result]
-        self._transfer_rates_cache = ret
-        self._trans_cache_timer = now
-        return ret
+        i = 0
+        rx = 0
+        tx = 0
+        for line in data:
+            if 'eth0' in line:
+                rx = data[i+3].split(' ')[4]
+                tx = data[i+5].split(' ')[4]
+                break
+            i += 1
+        return int(rx), int(tx)
 
     async def async_get_rx(self, use_cache=True):
         """Get current RX total given in bytes."""
