@@ -210,6 +210,15 @@ class AsusWrt:
             return
 
         time_diff = now - self._latest_transfer_check
+        if time_diff.total_seconds() < 30:
+            return (
+                math.ceil(
+                    self._rx_latest / time_diff.total_seconds()
+                ) if self._rx_latest > 0 else 0,
+                math.ceil(
+                    self._tx_latest / time_diff.total_seconds()
+                ) if self._tx_latest > 0 else 0)
+
         self._latest_transfer_check = now
 
         rx = data[0] - self._rx_latest
