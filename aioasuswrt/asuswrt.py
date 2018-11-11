@@ -132,7 +132,7 @@ class AsusWrt:
             return {}
         result = await _parse_lines(lines, _IP_NEIGH_REGEX)
         devices = {}
-        for device in result:
+        for device in await result:
             status = device['status']
             if status is None or status.upper() != 'REACHABLE':
                 continue
