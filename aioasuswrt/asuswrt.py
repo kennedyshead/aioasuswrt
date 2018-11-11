@@ -1,4 +1,5 @@
 """Moddule for Asuswrt."""
+import inspect
 import logging
 import math
 import re
@@ -54,12 +55,14 @@ _IP_LINK_CMD = "ip -rc 1024 -s link"
 Device = namedtuple('Device', ['mac', 'ip', 'name'])
 
 
-def _parse_lines(lines, regex):
+async def _parse_lines(lines, regex):
     """Parse the lines using the given regular expression.
 
     If a line can't be parsed it is logged and skipped in the output.
     """
     results = []
+    if inspect.iscoroutinefunction(lines):
+        lines = await lines
     for line in lines:
         if line:
             match = regex.search(line)
@@ -97,7 +100,7 @@ class AsusWrt:
         lines = await self.connection.async_run_command(_WL_CMD)
         if not lines:
             return {}
-        result = _parse_lines(lines, _WL_REGEX)
+        result = await _parse_lines(lines, _WL_REGEX)
         devices = {}
         for device in result:
             mac = device['mac'].upper()
@@ -109,7 +112,7 @@ class AsusWrt:
         if not lines:
             return {}
         lines = [line for line in lines if not line.startswith('duid ')]
-        result = _parse_lines(lines, _LEASES_REGEX)
+        result = await _parse_lines(lines, _LEASES_REGEX)
         devices = {}
         for device in result:
             # For leases where the client doesn't set a hostname, ensure it
@@ -128,7 +131,7 @@ class AsusWrt:
             return {}
         result = _parse_lines(lines, _IP_NEIGH_REGEX)
         devices = {}
-        for device in result:
+        for device in await result:
             status = device['status']
             if status is None or status.upper() != 'REACHABLE':
                 continue
@@ -143,7 +146,7 @@ class AsusWrt:
         lines = await self.connection.async_run_command(_ARP_CMD)
         if not lines:
             return {}
-        result = _parse_lines(lines, _ARP_REGEX)
+        result = await _parse_lines(lines, _ARP_REGEX)
         devices = {}
         for device in result:
             if device['mac'] is not None:
