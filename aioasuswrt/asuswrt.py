@@ -61,11 +61,12 @@ def _parse_lines(lines, regex):
     """
     results = []
     for line in lines:
-        match = regex.search(line)
-        if not match:
-            _LOGGER.debug("Could not parse row: %s", line)
-            continue
-        results.append(match.groupdict())
+        if line:
+            match = regex.search(line)
+            if not match:
+                _LOGGER.debug("Could not parse row: %s", line)
+                continue
+            results.append(match.groupdict())
     return results
 
 
