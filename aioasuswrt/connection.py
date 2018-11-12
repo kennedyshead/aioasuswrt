@@ -88,7 +88,8 @@ class TelnetConnection:
         """
         if not self._connected:
             await self.async_connect()
-        self._writer.write('{}\n'.format(command).encode('ascii'))
+        self._writer.write('{}\n'.format(
+                "%s && %s" % (_PATH_EXPORT_COMMAND, command)).encode('ascii'))
         data = ((await self._reader.readuntil(self._prompt_string)).
                 split(b'\n')[1:-1])
         return [line.decode('utf-8') for line in data]
