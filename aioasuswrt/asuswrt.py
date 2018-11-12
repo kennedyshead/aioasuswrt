@@ -187,7 +187,7 @@ class AsusWrt:
 
         data = await self.connection.async_run_command(_IFCONFIG_CMD)
         _LOGGER.info(data)
-        match = _parse_lines(data, _IFCONFIG_REGEX)
+        match = await _parse_lines(data, _IFCONFIG_REGEX)
         return match
 
     async def async_get_rx(self, use_cache=True):
