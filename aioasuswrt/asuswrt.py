@@ -16,7 +16,7 @@ CHANGE_TIME_CACHE_DEFAULT = 5  # Default 60s
 _LEASES_CMD = 'cat /var/lib/misc/dnsmasq.leases'
 _LEASES_REGEX = re.compile(
     r'\w+\s' +
-    r'(?P<mac>(([0-9a-f]{2}[:-]){5}([0-9a-f]{2})))\s' +
+    r'(?P<mac>(([0-9a-fA-F]{2}[:-]){5}([0-9a-fA-F]{2})))\s' +
     r'(?P<ip>([0-9]{1,3}[\.]){3}[0-9]{1,3})\s' +
     r'(?P<host>([^\s]+))')
 
@@ -32,7 +32,7 @@ _IP_NEIGH_REGEX = re.compile(
     r'([0-9a-fA-F]{1,4}:){1,7}[0-9a-fA-F]{0,4}(:[0-9a-fA-F]{1,4}){1,7})\s'
     r'\w+\s'
     r'\w+\s'
-    r'(\w+\s(?P<mac>(([0-9a-f]{2}[:-]){5}([0-9a-f]{2}))))?\s'
+    r'(\w+\s(?P<mac>(([0-9a-fA-F]{2}[:-]){5}([0-9a-fA-F]{2}))))?\s'
     r'\s?(router)?'
     r'\s?(nud)?'
     r'(?P<status>(\w+))')
@@ -42,7 +42,7 @@ _ARP_REGEX = re.compile(
     r'.+\s' +
     r'\((?P<ip>([0-9]{1,3}[\.]){3}[0-9]{1,3})\)\s' +
     r'.+\s' +
-    r'(?P<mac>(([0-9a-f]{2}[:-]){5}([0-9a-f]{2})))' +
+    r'(?P<mac>(([0-9a-fA-F]{2}[:-]){5}([0-9a-fA-F]{2})))' +
     r'\s' +
     r'.*')
 
@@ -68,6 +68,7 @@ async def _parse_lines(lines, regex):
             match = regex.search(line)
             if not match:
                 _LOGGER.debug("Could not parse row: %s", line)
+                _LOGGER.debug(type(line))
                 continue
             results.append(match.groupdict())
     return results
@@ -161,11 +162,15 @@ class AsusWrt:
         responses. Some commands will not work on some routers.
         """
         devices = {}
-        devices.update(await self.async_get_wl())
-        devices.update(await self.async_get_arp())
-        devices.update(await self.async_get_neigh(devices))
+        dev = await self.async_get_wl()
+        devices.update(dev)
+        dev = await self.async_get_arp()
+        devices.update(dev)
+        dev = await self.async_get_neigh(devices)
+        devices.update(dev)
         if not self.mode == 'ap':
-            devices.update(await self.async_get_leases(devices))
+            dev = await self.async_get_leases(devices)
+            devices.update(dev)
 
         ret_devices = {}
         for key in devices:
