@@ -1,28 +1,24 @@
 import asyncio
 import pytest
-import pytest_asyncio.plugin
-import re
-from unittest import TestCase
-from mock import mock
-from aioasuswrt.connection import SshConnection, TelnetConnection
-from aioasuswrt.asuswrt import (
-    AsusWrt,
-    _ARP_REGEX,
-    _LEASES_CMD,
-    _WL_CMD,
-    _IP_NEIGH_CMD,
-    _ARP_CMD,
-    _IFCONFIG_CMD,
-    Device,
-    _parse_lines
-)
+from aioasuswrt.asuswrt import (AsusWrt, _LEASES_CMD, _WL_CMD, _IP_NEIGH_CMD,
+                                _ARP_CMD, _IFCONFIG_CMD, _IP_LINK_CMD, Device)
 
 IFCONFIG_DATA = [
     'RX bytes:2787093240 (2.5 GiB)  TX bytes:245515000 (234.1 MiB)'
 ]
 
-IFCONFIG_RX = 2787093240
-IFCONFIG_TX = 245515000
+IP_DATA = [
+    "7: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc htb state "
+    "UNKNOWN mode DEFAULT qlen 1000",
+    "link/ether f8:32:e4:51:27:80 brd ff:ff:ff:ff:ff:ff",
+    "RX: bytes  packets  errors  dropped overrun mcast  ",
+    "    2703926881 358721207 0       0       0       0       ",
+    "TX: bytes  packets  errors  dropped carrier collsns ",
+    "    648110137  412532989 0       0       0       0   ",
+]
+
+IFCONFIG_RX = 2703926881
+IFCONFIG_TX = 648110137
 
 WL_DATA = [
     'assoclist 01:02:03:04:06:08\r',
@@ -47,6 +43,7 @@ ARP_DATA = [
     '? (123.123.123.126) at 08:09:10:11:12:14 [ether]  on br0\r',
     '? (123.123.123.128) at AB:CD:DE:AB:CD:EF [ether]  on br0\r',
     '? (123.123.123.127) at <incomplete>  on br0\r',
+    '? (172.16.10.2) at 00:25:90:12:2D:90 [ether]  on br0\r',
 ]
 
 ARP_DEVICES = {
@@ -55,7 +52,9 @@ ARP_DEVICES = {
     '08:09:10:11:12:14': Device(
         mac='08:09:10:11:12:14', ip='123.123.123.126', name=None),
     'AB:CD:DE:AB:CD:EF': Device(
-        mac='AB:CD:DE:AB:CD:EF', ip='123.123.123.128', name=None)
+        mac='AB:CD:DE:AB:CD:EF', ip='123.123.123.128', name=None),
+    '00:25:90:12:2D:90': Device(
+        mac='00:25:90:12:2D:90', ip='172.16.10.2', name=None)
 }
 
 NEIGH_DATA = [
@@ -93,7 +92,9 @@ WAKE_DEVICES = {
     '01:02:03:04:06:08': Device(
         mac='01:02:03:04:06:08', ip='123.123.123.125', name='TV'),
     '08:09:10:11:12:14': Device(
-        mac='08:09:10:11:12:14', ip='123.123.123.126', name='')
+        mac='08:09:10:11:12:14', ip='123.123.123.126', name=''),
+    '00:25:90:12:2D:90': Device(
+        mac='00:25:90:12:2D:90', ip='172.16.10.2', name=None)
 }
 
 WAKE_DEVICES_AP = {
@@ -102,7 +103,9 @@ WAKE_DEVICES_AP = {
     '08:09:10:11:12:14': Device(
         mac='08:09:10:11:12:14', ip='123.123.123.126', name=None),
     'AB:CD:DE:AB:CD:EF': Device(
-        mac='AB:CD:DE:AB:CD:EF', ip='123.123.123.128', name=None)
+        mac='AB:CD:DE:AB:CD:EF', ip='123.123.123.128', name=None),
+    '00:25:90:12:2D:90': Device(
+        mac='00:25:90:12:2D:90', ip='172.16.10.2', name=None)
 }
 
 WAKE_DEVICES_NO_IP = {
@@ -113,7 +116,9 @@ WAKE_DEVICES_NO_IP = {
     '08:09:10:11:12:15': Device(
         mac='08:09:10:11:12:15', ip=None, name=None),
     'AB:CD:DE:AB:CD:EF': Device(
-        mac='AB:CD:DE:AB:CD:EF', ip='123.123.123.128', name=None)
+        mac='AB:CD:DE:AB:CD:EF', ip='123.123.123.128', name=None),
+    '00:25:90:12:2D:90': Device(
+        mac='00:25:90:12:2D:90', ip='172.16.10.2', name=None)
 }
 
 
@@ -134,6 +139,9 @@ def RunCommandMock(command, *args, **kwargs):
     if command == _IFCONFIG_CMD:
         f.set_result(IFCONFIG_DATA)
         return f
+    if command == _IP_LINK_CMD:
+        f.set_result(IP_DATA)
+        return f
     raise Exception("Unhandled command: %s" % command)
 
 
@@ -141,12 +149,6 @@ def RunCommandEmptyMock(command, *args, **kwargs):
     f = asyncio.Future()
     f.set_result("")
     return f
-
-
-def test_parse_lines_wrong_input():
-    """Testing parse lines."""
-    output = _parse_lines("asdf asdfdfsafad", re.compile(r'abc123'))
-    assert output == []
 
 
 @pytest.mark.asyncio
@@ -237,18 +239,3 @@ async def test_get_packets_total(event_loop, mocker):
     assert IFCONFIG_TX == data
     data = await scanner.async_get_rx(use_cache=False)
     assert IFCONFIG_RX == data
-
-
-@pytest.mark.asyncio
-async def test_get_current_transfer_rates(event_loop, mocker):
-    """Test getting packet totals."""
-    mocker.patch(
-        'aioasuswrt.connection.SshConnection.async_run_command',
-        side_effect=RunCommandMock)
-    scanner = AsusWrt(host="localhost", port=22, mode='ap', require_ip=False)
-    # call it once to set the values
-    await scanner.async_get_current_transfer_rates(use_cache=True)
-
-    # now check if its good
-    data = await scanner.async_get_current_transfer_rates(use_cache=True)
-    assert (0, 0) == data

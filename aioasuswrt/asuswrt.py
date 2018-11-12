@@ -1,4 +1,5 @@
 """Moddule for Asuswrt."""
+import inspect
 import logging
 import math
 import re
@@ -15,7 +16,7 @@ CHANGE_TIME_CACHE_DEFAULT = 5  # Default 60s
 _LEASES_CMD = 'cat /var/lib/misc/dnsmasq.leases'
 _LEASES_REGEX = re.compile(
     r'\w+\s' +
-    r'(?P<mac>(([0-9a-f]{2}[:-]){5}([0-9a-f]{2})))\s' +
+    r'(?P<mac>(([0-9a-fA-F]{2}[:-]){5}([0-9a-fA-F]{2})))\s' +
     r'(?P<ip>([0-9]{1,3}[\.]){3}[0-9]{1,3})\s' +
     r'(?P<host>([^\s]+))')
 
@@ -31,7 +32,7 @@ _IP_NEIGH_REGEX = re.compile(
     r'([0-9a-fA-F]{1,4}:){1,7}[0-9a-fA-F]{0,4}(:[0-9a-fA-F]{1,4}){1,7})\s'
     r'\w+\s'
     r'\w+\s'
-    r'(\w+\s(?P<mac>(([0-9a-f]{2}[:-]){5}([0-9a-f]{2}))))?\s'
+    r'(\w+\s(?P<mac>(([0-9a-fA-F]{2}[:-]){5}([0-9a-fA-F]{2}))))?\s'
     r'\s?(router)?'
     r'\s?(nud)?'
     r'(?P<status>(\w+))')
@@ -41,7 +42,7 @@ _ARP_REGEX = re.compile(
     r'.+\s' +
     r'\((?P<ip>([0-9]{1,3}[\.]){3}[0-9]{1,3})\)\s' +
     r'.+\s' +
-    r'(?P<mac>(([0-9a-f]{2}[:-]){5}([0-9a-f]{2})))' +
+    r'(?P<mac>(([0-9a-fA-F]{2}[:-]){5}([0-9a-fA-F]{2})))' +
     r'\s' +
     r'.*')
 
@@ -54,17 +55,20 @@ _IP_LINK_CMD = "ip -rc 1024 -s link"
 Device = namedtuple('Device', ['mac', 'ip', 'name'])
 
 
-def _parse_lines(lines, regex):
+async def _parse_lines(lines, regex):
     """Parse the lines using the given regular expression.
 
     If a line can't be parsed it is logged and skipped in the output.
     """
     results = []
+    if inspect.iscoroutinefunction(lines):
+        lines = await lines
     for line in lines:
         if line:
             match = regex.search(line)
             if not match:
                 _LOGGER.debug("Could not parse row: %s", line)
+                _LOGGER.debug(type(line))
                 continue
             results.append(match.groupdict())
     return results
@@ -97,7 +101,7 @@ class AsusWrt:
         lines = await self.connection.async_run_command(_WL_CMD)
         if not lines:
             return {}
-        result = _parse_lines(lines, _WL_REGEX)
+        result = await _parse_lines(lines, _WL_REGEX)
         devices = {}
         for device in result:
             mac = device['mac'].upper()
@@ -109,7 +113,7 @@ class AsusWrt:
         if not lines:
             return {}
         lines = [line for line in lines if not line.startswith('duid ')]
-        result = _parse_lines(lines, _LEASES_REGEX)
+        result = await _parse_lines(lines, _LEASES_REGEX)
         devices = {}
         for device in result:
             # For leases where the client doesn't set a hostname, ensure it
@@ -128,7 +132,7 @@ class AsusWrt:
             return {}
         result = _parse_lines(lines, _IP_NEIGH_REGEX)
         devices = {}
-        for device in result:
+        for device in await result:
             status = device['status']
             if status is None or status.upper() != 'REACHABLE':
                 continue
@@ -143,7 +147,7 @@ class AsusWrt:
         lines = await self.connection.async_run_command(_ARP_CMD)
         if not lines:
             return {}
-        result = _parse_lines(lines, _ARP_REGEX)
+        result = await _parse_lines(lines, _ARP_REGEX)
         devices = {}
         for device in result:
             if device['mac'] is not None:
@@ -158,11 +162,15 @@ class AsusWrt:
         responses. Some commands will not work on some routers.
         """
         devices = {}
-        devices.update(await self.async_get_wl())
-        devices.update(await self.async_get_arp())
-        devices.update(await self.async_get_neigh(devices))
+        dev = await self.async_get_wl()
+        devices.update(dev)
+        dev = await self.async_get_arp()
+        devices.update(dev)
+        dev = await self.async_get_neigh(devices)
+        devices.update(dev)
         if not self.mode == 'ap':
-            devices.update(await self.async_get_leases(devices))
+            dev = await self.async_get_leases(devices)
+            devices.update(dev)
 
         ret_devices = {}
         for key in devices:
