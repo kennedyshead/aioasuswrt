@@ -6,6 +6,8 @@ import asyncssh
 
 _LOGGER = logging.getLogger(__name__)
 
+_PATH_EXPORT_COMMAND = "PATH=$PATH:/bin:/usr/sbin:/sbin"
+
 
 class SshConnection:
     """Maintains an SSH connection to an ASUS-WRT router."""
@@ -30,7 +32,8 @@ class SshConnection:
         if not self.is_connected:
             await self.async_connect()
         try:
-            result = await self._client.run(command)
+            result = await self._client.run(
+                "%s && %s" % (_PATH_EXPORT_COMMAND, command))
         except asyncssh.misc.ChannelOpenError:
             if not retry:
                 await self.async_connect()
