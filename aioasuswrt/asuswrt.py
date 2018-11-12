@@ -21,8 +21,8 @@ _LEASES_REGEX = re.compile(
     r'(?P<host>([^\s]+))')
 
 # Command to get both 5GHz and 2.4GHz clients
-_WL_CMD = 'for dev in `nvram get wl_ifnames`; do /usr/sbin/wl -i $dev ' \
-          'assoclist; done'
+_WL_CMD = 'for dev in `/usr/sbin/nvram get wl_ifnames`; ' \
+          'do /usr/sbin/wl -i $dev assoclist; done'
 _WL_REGEX = re.compile(
     r'\w+\s' +
     r'(?P<mac>(([0-9A-F]{2}[:-]){5}([0-9A-F]{2})))')
@@ -47,7 +47,7 @@ _ARP_REGEX = re.compile(
     r'\s' +
     r'.*')
 
-_IFCONFIG_CMD = 'ifconfig eth0 |grep bytes'
+_IFCONFIG_CMD = '/sbin/ifconfig eth0 |/bin/grep bytes'
 _IFCONFIG_REGEX = re.compile(
     r'(?P<data>[\d]{4,})')
 
@@ -68,6 +68,7 @@ async def _parse_lines(lines, regex):
         if line:
             match = regex.search(line)
             if not match:
+                _LOGGER.debug("Could not parse row: %s", line)
                 continue
             results.append(match.groupdict())
     return results
@@ -132,7 +133,7 @@ class AsusWrt:
             return {}
         result = await _parse_lines(lines, _IP_NEIGH_REGEX)
         devices = {}
-        for device in await result:
+        for device in result:
             status = device['status']
             if status is None or status.upper() != 'REACHABLE':
                 continue
