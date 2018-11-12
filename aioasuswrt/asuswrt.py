@@ -13,7 +13,7 @@ _LOGGER = logging.getLogger(__name__)
 
 CHANGE_TIME_CACHE_DEFAULT = 5  # Default 60s
 
-_LEASES_CMD = 'cat /var/lib/misc/dnsmasq.leases'
+_LEASES_CMD = '/bin/cat /var/lib/misc/dnsmasq.leases'
 _LEASES_REGEX = re.compile(
     r'\w+\s' +
     r'(?P<mac>(([0-9a-fA-F]{2}[:-]){5}([0-9a-fA-F]{2})))\s' +
@@ -21,12 +21,13 @@ _LEASES_REGEX = re.compile(
     r'(?P<host>([^\s]+))')
 
 # Command to get both 5GHz and 2.4GHz clients
-_WL_CMD = 'for dev in `nvram get wl_ifnames`; do wl -i $dev assoclist; done'
+_WL_CMD = 'for dev in `nvram get wl_ifnames`; do /usr/sbin/wl -i $dev ' \
+          'assoclist; done'
 _WL_REGEX = re.compile(
     r'\w+\s' +
     r'(?P<mac>(([0-9A-F]{2}[:-]){5}([0-9A-F]{2})))')
 
-_IP_NEIGH_CMD = 'ip neigh'
+_IP_NEIGH_CMD = '/usr/sbin/ip neigh'
 _IP_NEIGH_REGEX = re.compile(
     r'(?P<ip>([0-9]{1,3}[\.]){3}[0-9]{1,3}|'
     r'([0-9a-fA-F]{1,4}:){1,7}[0-9a-fA-F]{0,4}(:[0-9a-fA-F]{1,4}){1,7})\s'
@@ -37,7 +38,7 @@ _IP_NEIGH_REGEX = re.compile(
     r'\s?(nud)?'
     r'(?P<status>(\w+))')
 
-_ARP_CMD = 'arp -n'
+_ARP_CMD = '/sbin/arp -n'
 _ARP_REGEX = re.compile(
     r'.+\s' +
     r'\((?P<ip>([0-9]{1,3}[\.]){3}[0-9]{1,3})\)\s' +
@@ -131,7 +132,7 @@ class AsusWrt:
             return {}
         result = await _parse_lines(lines, _IP_NEIGH_REGEX)
         devices = {}
-        for device in result:
+        for device in await result:
             status = device['status']
             if status is None or status.upper() != 'REACHABLE':
                 continue
