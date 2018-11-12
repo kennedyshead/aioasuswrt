@@ -228,10 +228,16 @@ class AsusWrt:
                     self._tx_latest / time_diff.total_seconds()
                 ) if self._tx_latest > 0 else 0)
 
-        self._latest_transfer_check = now
+        if data[0] < self._rx_latest:
+            rx = data[0]
+        else:
+            rx = data[0] - self._rx_latest
 
-        rx = data[0] - self._rx_latest
-        tx = data[1] - self._tx_latest
+        if data[1] < self._tx_latest:
+            tx = data[1]
+        else:
+            tx = data[1] - self._tx_latest
+        self._latest_transfer_check = now
 
         self._rx_latest = data[0]
         self._tx_latest = data[1]
