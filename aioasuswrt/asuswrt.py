@@ -130,9 +130,9 @@ class AsusWrt:
         lines = await self.connection.async_run_command(_IP_NEIGH_CMD)
         if not lines:
             return {}
-        result = _parse_lines(lines, _IP_NEIGH_REGEX)
+        result = await _parse_lines(lines, _IP_NEIGH_REGEX)
         devices = {}
-        for device in await result:
+        for device in result:
             status = device['status']
             if status is None or status.upper() != 'REACHABLE':
                 continue
