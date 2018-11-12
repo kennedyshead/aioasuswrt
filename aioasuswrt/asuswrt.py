@@ -67,8 +67,6 @@ async def _parse_lines(lines, regex):
         if line:
             match = regex.search(line)
             if not match:
-                _LOGGER.debug("Could not parse row: %s", line)
-                _LOGGER.debug(type(line))
                 continue
             results.append(match.groupdict())
     return results
@@ -89,6 +87,7 @@ class AsusWrt:
         self._cache_time = time_cache
         self._trans_cache_timer = None
         self._transfer_rates_cache = None
+        self._latest_transfer_data = 0, 0
 
         if use_telnet:
             self.connection = TelnetConnection(
@@ -187,8 +186,12 @@ class AsusWrt:
 
         data = await self.connection.async_run_command(_IFCONFIG_CMD)
         _LOGGER.info(data)
-        match = await _parse_lines(data, _IFCONFIG_REGEX)
-        return match
+        result = _IFCONFIG_REGEX.findall(data[0])
+        _LOGGER.info(result)
+        ret = [int(value) for value in result]
+        self._transfer_rates_cache = ret
+        self._trans_cache_timer = now
+        return ret
 
     async def async_get_rx(self, use_cache=True):
         """Get current RX total given in bytes."""
@@ -208,17 +211,11 @@ class AsusWrt:
             self._latest_transfer_check = now
             self._rx_latest = data[0]
             self._tx_latest = data[1]
-            return
+            return self._latest_transfer_data
 
         time_diff = now - self._latest_transfer_check
         if time_diff.total_seconds() < 30:
-            return (
-                math.ceil(
-                    self._rx_latest / time_diff.total_seconds()
-                ) if self._rx_latest > 0 else 0,
-                math.ceil(
-                    self._tx_latest / time_diff.total_seconds()
-                ) if self._tx_latest > 0 else 0)
+            return self._latest_transfer_data
 
         if data[0] < self._rx_latest:
             rx = data[0]
@@ -233,9 +230,10 @@ class AsusWrt:
         self._rx_latest = data[0]
         self._tx_latest = data[1]
 
-        return (
+        self._latest_transfer_data = (
             math.ceil(rx / time_diff.total_seconds()) if rx > 0 else 0,
             math.ceil(tx / time_diff.total_seconds()) if tx > 0 else 0)
+        return self._latest_transfer_data
 
     async def async_current_transfer_human_readable(
             self, use_cache=True):
