@@ -185,18 +185,10 @@ class AsusWrt:
                 (now - self._trans_cache_timer).total_seconds():
             return self._transfer_rates_cache
 
-        data = await self.connection.async_run_command(_IP_LINK_CMD)
+        data = await self.connection.async_run_command(_IFCONFIG_CMD)
         _LOGGER.info(data)
-        i = 0
-        rx = 0
-        tx = 0
-        for line in data:
-            if 'eth0' in line:
-                rx = data[i+3].split(' ')[4]
-                tx = data[i+5].split(' ')[4]
-                break
-            i += 1
-        return int(rx), int(tx)
+        match = _parse_lines(data, _IFCONFIG_REGEX)
+        return match
 
     async def async_get_rx(self, use_cache=True):
         """Get current RX total given in bytes."""
@@ -232,7 +224,6 @@ class AsusWrt:
             rx = data[0]
         else:
             rx = data[0] - self._rx_latest
-
         if data[1] < self._tx_latest:
             tx = data[1]
         else:
