@@ -1,7 +1,5 @@
 Small wrapper for asuswrt.
 
-Help neede for tests, just open a PR!
-
 ### How to run tests
 
 `python setup.py test`
