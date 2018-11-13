@@ -21,8 +21,11 @@ _LEASES_REGEX = re.compile(
     r'(?P<host>([^\s]+))')
 
 # Command to get both 5GHz and 2.4GHz clients
-_WL_CMD = 'for dev in `nvram get wl_ifnames`; ' \
-          'do wl -i $dev assoclist; done'
+_WL_CMD = 'for dev in `nvram get wl1_vifs && nvram get wl0_vifs && ' \
+          'nvram get wl_ifnames`; do ' \
+          'if type wlanconfig > /dev/null; then ' \
+          'wlanconfig $dev list | awk \'FNR > 1 {print substr($1, 0, 18)}\';' \
+          ' else wl -i $dev assoclist; fi; done'
 _WL_REGEX = re.compile(
     r'\w+\s' +
     r'(?P<mac>(([0-9A-F]{2}[:-]){5}([0-9A-F]{2})))')
