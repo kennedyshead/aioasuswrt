@@ -17,4 +17,4 @@ If you have a problem with your specific router open an issue, but please add as
 * Version of Asuswrt
 
 ## Known issues
-* Some new routers do not include the wl command, #13
+* Some new routers do not include the wl command, [#13](https://github.com/kennedyshead/aioasuswrt/issues/13)
