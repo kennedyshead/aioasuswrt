@@ -81,7 +81,7 @@ class TelnetConnection:
         self._prompt_string = None
         self._connected = False
 
-    async def async_run_command(self, command):
+    async def async_run_command(self, command, first_try=True):
         """Run a command through a Telnet connection.
         Connect to the Telnet server if not currently connected, otherwise
         use the existing connection.
@@ -90,8 +90,16 @@ class TelnetConnection:
             await self.async_connect()
         self._writer.write('{}\n'.format(
                 "%s && %s" % (_PATH_EXPORT_COMMAND, command)).encode('ascii'))
-        data = ((await self._reader.readuntil(self._prompt_string)).
+        try:
+            data = ((await self._reader.readuntil(self._prompt_string)).
                 split(b'\n')[1:-1])
+        except BrokenPipeError:
+            if first_try:
+                self._connected = False
+                return await self.async_run_command(command, False)
+            else:
+                _LOGGER.warning("connection is lost for router")
+                return[]
         return [line.decode('utf-8') for line in data]
 
     async def async_connect(self):
