@@ -190,7 +190,7 @@ class AsusWrt:
             return self._transfer_rates_cache
 
         data = await self.connection.async_run_command(_IP_LINK_CMD)
-        _LOGGER.info(data)
+        _LOGGER.debug(data)
         i = 0
         rx = 0
         tx = 0
