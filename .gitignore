@@ -142,3 +142,5 @@ crashlytics.properties
 crashlytics-build.properties
 fabric.properties
 
+test.py
+upload.sh
