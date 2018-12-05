@@ -55,6 +55,8 @@ _IFCONFIG_REGEX = re.compile(
     r'(?P<data>[\d]{4,})')
 
 _IP_LINK_CMD = "ip -rc 1024 -s link"
+_RX_COMMAND = 'cat /sys/class/net/eth0/statistics/rx_bytes'
+_TX_COMMAND = 'cat /sys/class/net/eth0/statistics/tx_bytes'
 
 Device = namedtuple('Device', ['mac', 'ip', 'name'])
 
@@ -204,13 +206,13 @@ class AsusWrt:
 
     async def async_get_rx(self, use_cache=True):
         """Get current RX total given in bytes."""
-        data = await self.async_get_packets_total(use_cache)
-        return data[0]
+        data = await self.connection.async_run_command(_RX_COMMAND)
+        return data
 
     async def async_get_tx(self, use_cache=True):
         """Get current RX total given in bytes."""
-        data = await self.async_get_packets_total(use_cache)
-        return data[1]
+        data = await self.connection.async_run_command(_TX_COMMAND)
+        return data
 
     async def async_get_current_transfer_rates(self, use_cache=True):
         """Gets current transfer rates calculated in per second in bytes."""
