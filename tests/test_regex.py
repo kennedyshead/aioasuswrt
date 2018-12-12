@@ -1,7 +1,8 @@
 import asyncio
 import pytest
 from aioasuswrt.asuswrt import (AsusWrt, _LEASES_CMD, _WL_CMD, _IP_NEIGH_CMD,
-                                _ARP_CMD, _IFCONFIG_CMD, _IP_LINK_CMD, Device)
+                                _ARP_CMD, _IFCONFIG_CMD, _IP_LINK_CMD, Device,
+                                _RX_COMMAND, _TX_COMMAND)
 
 IFCONFIG_DATA = [
     'RX bytes:2787093240 (2.5 GiB)  TX bytes:245515000 (234.1 MiB)'
@@ -17,8 +18,8 @@ IP_DATA = [
     "    648110137  412532989 0       0       0       0   ",
 ]
 
-IFCONFIG_RX = 2703926881
-IFCONFIG_TX = 648110137
+RX = 2703926881
+TX = 648110137
 
 WL_DATA = [
     'assoclist 01:02:03:04:06:08\r',
@@ -142,6 +143,12 @@ def RunCommandMock(command, *args, **kwargs):
     if command == _IP_LINK_CMD:
         f.set_result(IP_DATA)
         return f
+    if command == _RX_COMMAND:
+        f.set_result(RX)
+        return f
+    if command == _TX_COMMAND:
+        f.set_result(TX)
+        return f
     raise Exception("Unhandled command: %s" % command)
 
 
@@ -236,6 +243,6 @@ async def test_get_packets_total(event_loop, mocker):
         side_effect=RunCommandMock)
     scanner = AsusWrt(host="localhost", port=22, mode='ap', require_ip=False)
     data = await scanner.async_get_tx(use_cache=False)
-    assert IFCONFIG_TX == data
+    assert TX == data
     data = await scanner.async_get_rx(use_cache=False)
-    assert IFCONFIG_RX == data
+    assert RX == data
