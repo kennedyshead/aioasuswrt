@@ -1,6 +1,7 @@
 """Module for connections."""
 import asyncio
 import logging
+from asyncio import LimitOverrunError
 
 import asyncssh
 
@@ -93,12 +94,13 @@ class TelnetConnection:
         try:
             data = ((await self._reader.readuntil(self._prompt_string)).
                 split(b'\n')[1:-1])
-        except BrokenPipeError:
+        except (BrokenPipeError, LimitOverrunError):
             if first_try:
                 self._connected = False
                 return await self.async_run_command(command, False)
             else:
                 _LOGGER.warning("connection is lost for router")
+                self._connected = False
                 return[]
         return [line.decode('utf-8') for line in data]
 
