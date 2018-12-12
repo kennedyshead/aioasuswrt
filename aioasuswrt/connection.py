@@ -87,8 +87,7 @@ class TelnetConnection:
         Connect to the Telnet server if not currently connected, otherwise
         use the existing connection.
         """
-        if not self._connected:
-            await self.async_connect()
+        await self.async_connect()
         self._writer.write('{}\n'.format(
                 "%s && %s" % (_PATH_EXPORT_COMMAND, command)).encode('ascii'))
         try:
@@ -96,11 +95,9 @@ class TelnetConnection:
                 split(b'\n')[1:-1])
         except (BrokenPipeError, LimitOverrunError):
             if first_try:
-                self._connected = False
                 return await self.async_run_command(command, False)
             else:
                 _LOGGER.warning("connection is lost for router")
-                self._connected = False
                 return[]
         return [line.decode('utf-8') for line in data]
 
