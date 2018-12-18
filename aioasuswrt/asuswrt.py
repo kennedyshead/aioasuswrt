@@ -82,7 +82,7 @@ async def _parse_lines(lines, regex):
 class AsusWrt:
     """This is the interface class."""
 
-    def __init__(self, host, port, use_telnet=False, username=None,
+    def __init__(self, host, port=None, use_telnet=False, username=None,
                  password=None, ssh_key=None, mode='router', require_ip=False,
                  time_cache=CHANGE_TIME_CACHE_DEFAULT):
         """Init function."""
