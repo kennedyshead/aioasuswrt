@@ -18,7 +18,7 @@ class SshConnection:
 
         self._connected = False
         self._host = host
-        self._port = port
+        self._port = port or 22
         self._username = username
         self._password = password
         self._ssh_key = ssh_key
@@ -76,7 +76,7 @@ class TelnetConnection:
         self._reader = None
         self._writer = None
         self._host = host
-        self._port = port
+        self._port = port or 23
         self._username = username
         self._password = password
         self._prompt_string = None
