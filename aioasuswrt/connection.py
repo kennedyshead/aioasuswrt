@@ -89,10 +89,11 @@ class TelnetConnection:
         use the existing connection.
         """
         await self.async_connect()
-        self._writer.write('{}\n'.format(
-                "%s && %s" % (_PATH_EXPORT_COMMAND, command)).encode('ascii'))
         try:
             with (await self._io_lock):
+                self._writer.write('{}\n'.format(
+                    "%s && %s" % (
+                        _PATH_EXPORT_COMMAND, command)).encode('ascii'))
                 data = ((await self._reader.readuntil(self._prompt_string)).
                     split(b'\n')[1:-1])
         except (BrokenPipeError, LimitOverrunError):
@@ -110,12 +111,11 @@ class TelnetConnection:
 
         with (await self._io_lock):
             await self._reader.readuntil(b'login: ')
-        self._writer.write((self._username + '\n').encode('ascii'))
-        with (await self._io_lock):
+            self._writer.write((self._username + '\n').encode('ascii'))
             await self._reader.readuntil(b'Password: ')
-        self._writer.write((self._password + '\n').encode('ascii'))
-        self._prompt_string = (await self._reader.readuntil(
-            b'#')).split(b'\n')[-1]
+            self._writer.write((self._password + '\n').encode('ascii'))
+            self._prompt_string = (await self._reader.readuntil(
+                b'#')).split(b'\n')[-1]
         self._connected = True
 
     @property
