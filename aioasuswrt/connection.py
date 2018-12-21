@@ -81,6 +81,7 @@ class TelnetConnection:
         self._password = password
         self._prompt_string = None
         self._connected = False
+        self._io_lock = asyncio.Lock()
 
     async def async_run_command(self, command, first_try=True):
         """Run a command through a Telnet connection.
@@ -88,11 +89,13 @@ class TelnetConnection:
         use the existing connection.
         """
         await self.async_connect()
-        self._writer.write('{}\n'.format(
-                "%s && %s" % (_PATH_EXPORT_COMMAND, command)).encode('ascii'))
         try:
-            data = ((await self._reader.readuntil(self._prompt_string)).
-                split(b'\n')[1:-1])
+            with (await self._io_lock):
+                self._writer.write('{}\n'.format(
+                    "%s && %s" % (
+                        _PATH_EXPORT_COMMAND, command)).encode('ascii'))
+                data = ((await self._reader.readuntil(self._prompt_string)).
+                    split(b'\n')[1:-1])
         except (BrokenPipeError, LimitOverrunError):
             if first_try:
                 return await self.async_run_command(command, False)
@@ -105,12 +108,14 @@ class TelnetConnection:
         """Connect to the ASUS-WRT Telnet server."""
         self._reader, self._writer = await asyncio.open_connection(
             self._host, self._port)
-        await self._reader.readuntil(b'login: ')
-        self._writer.write((self._username + '\n').encode('ascii'))
-        await self._reader.readuntil(b'Password: ')
-        self._writer.write((self._password + '\n').encode('ascii'))
-        self._prompt_string = (await self._reader.readuntil(
-            b'#')).split(b'\n')[-1]
+
+        with (await self._io_lock):
+            await self._reader.readuntil(b'login: ')
+            self._writer.write((self._username + '\n').encode('ascii'))
+            await self._reader.readuntil(b'Password: ')
+            self._writer.write((self._password + '\n').encode('ascii'))
+            self._prompt_string = (await self._reader.readuntil(
+                b'#')).split(b'\n')[-1]
         self._connected = True
 
     @property
