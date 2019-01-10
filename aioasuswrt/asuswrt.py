@@ -50,10 +50,6 @@ _ARP_REGEX = re.compile(
     r'\s' +
     r'.*')
 
-_IFCONFIG_CMD = 'ifconfig eth0 |grep bytes'
-_IFCONFIG_REGEX = re.compile(
-    r'(?P<data>[\d]{4,})')
-
 _RX_COMMAND = 'cat /sys/class/net/eth0/statistics/rx_bytes'
 _TX_COMMAND = 'cat /sys/class/net/eth0/statistics/tx_bytes'
 
