@@ -9,6 +9,7 @@ Small wrapper for asuswrt.
 [@halkeye](https://github.com/halkeye)
 [@maweki](https://github.com/maweki)
 [@quarcko](https://github.com/quarcko)
+[@wdullaer](https://github.com/wdullaer)
 
 ## Info
 There are many different versions of asuswrt and sometimes they just dont work in current implementation.
