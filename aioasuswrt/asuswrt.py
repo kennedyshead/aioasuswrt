@@ -1,4 +1,4 @@
-"""Moddule for Asuswrt."""
+"""Module for Asuswrt."""
 import inspect
 import logging
 import math
@@ -50,11 +50,6 @@ _ARP_REGEX = re.compile(
     r'\s' +
     r'.*')
 
-_IFCONFIG_CMD = 'ifconfig eth0 |grep bytes'
-_IFCONFIG_REGEX = re.compile(
-    r'(?P<data>[\d]{4,})')
-
-_IP_LINK_CMD = "ip -rc 1024 -s link"
 _RX_COMMAND = 'cat /sys/class/net/eth0/statistics/rx_bytes'
 _TX_COMMAND = 'cat /sys/class/net/eth0/statistics/tx_bytes'
 
@@ -184,35 +179,26 @@ class AsusWrt:
                 ret_devices[key] = devices[key]
         return ret_devices
 
-    async def async_get_packets_total(self, use_cache=True):
-        """Retrieve total packets from ASUSWRT."""
+    async def async_get_bytes_total(self, use_cache=True):
+        """Retrieve total bytes (rx an tx) from ASUSWRT."""
         now = datetime.utcnow()
         if use_cache and self._trans_cache_timer and self._cache_time > \
                 (now - self._trans_cache_timer).total_seconds():
             return self._transfer_rates_cache
 
-        data = await self.connection.async_run_command(_IP_LINK_CMD)
-        _LOGGER.debug(data)
-        i = 0
-        rx = 0
-        tx = 0
-        for line in data:
-            if 'eth0' in line:
-                rx = data[i+3].split(' ')[4]
-                tx = data[i+5].split(' ')[4]
-                break
-            i += 1
-        return int(rx), int(tx)
+        rx = await self.async_get_rx()
+        tx = await self.async_get_tx()
+        return rx, tx
 
-    async def async_get_rx(self, use_cache=True):
+    async def async_get_rx(self):
         """Get current RX total given in bytes."""
         data = await self.connection.async_run_command(_RX_COMMAND)
-        return data
+        return int(data[0])
 
-    async def async_get_tx(self, use_cache=True):
+    async def async_get_tx(self):
         """Get current RX total given in bytes."""
         data = await self.connection.async_run_command(_TX_COMMAND)
-        return data
+        return int(data[0])
 
     async def async_get_current_transfer_rates(self, use_cache=True):
         """Gets current transfer rates calculated in per second in bytes."""
