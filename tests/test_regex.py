@@ -1,22 +1,10 @@
 import asyncio
 import pytest
 from aioasuswrt.asuswrt import (AsusWrt, _LEASES_CMD, _WL_CMD, _IP_NEIGH_CMD,
-                                _ARP_CMD, _IFCONFIG_CMD, _IP_LINK_CMD, Device,
-                                _RX_COMMAND, _TX_COMMAND)
+                                _ARP_CMD, Device, _RX_COMMAND, _TX_COMMAND)
 
-IFCONFIG_DATA = [
-    'RX bytes:2787093240 (2.5 GiB)  TX bytes:245515000 (234.1 MiB)'
-]
-
-IP_DATA = [
-    "7: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc htb state "
-    "UNKNOWN mode DEFAULT qlen 1000",
-    "link/ether f8:32:e4:51:27:80 brd ff:ff:ff:ff:ff:ff",
-    "RX: bytes  packets  errors  dropped overrun mcast  ",
-    "    2703926881 358721207 0       0       0       0       ",
-    "TX: bytes  packets  errors  dropped carrier collsns ",
-    "    648110137  412532989 0       0       0       0   ",
-]
+RX_DATA = ["2703926881", ""]
+TX_DATA = ["648110137", ""]
 
 RX = 2703926881
 TX = 648110137
@@ -137,17 +125,11 @@ def RunCommandMock(command, *args, **kwargs):
     if command == _ARP_CMD:
         f.set_result(ARP_DATA)
         return f
-    if command == _IFCONFIG_CMD:
-        f.set_result(IFCONFIG_DATA)
-        return f
-    if command == _IP_LINK_CMD:
-        f.set_result(IP_DATA)
-        return f
     if command == _RX_COMMAND:
-        f.set_result(RX)
+        f.set_result(RX_DATA)
         return f
     if command == _TX_COMMAND:
-        f.set_result(TX)
+        f.set_result(TX_DATA)
         return f
     raise Exception("Unhandled command: %s" % command)
 
@@ -242,7 +224,7 @@ async def test_get_packets_total(event_loop, mocker):
         'aioasuswrt.connection.SshConnection.async_run_command',
         side_effect=RunCommandMock)
     scanner = AsusWrt(host="localhost", port=22, mode='ap', require_ip=False)
-    data = await scanner.async_get_tx(use_cache=False)
+    data = await scanner.async_get_tx()
     assert TX == data
-    data = await scanner.async_get_rx(use_cache=False)
+    data = await scanner.async_get_rx()
     assert RX == data
