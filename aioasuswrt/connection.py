@@ -110,7 +110,13 @@ class TelnetConnection:
             self._host, self._port)
 
         with (await self._io_lock):
-            await self._reader.readuntil(b'login: ')
+            try:
+                await self._reader.readuntil(b'login: ')
+            except asyncio.streams.IncompleteReadError:
+                _LOGGER.error(
+                    "Unable to read from router on %s:%s" % (
+                        self._host, self._port))
+                return
             self._writer.write((self._username + '\n').encode('ascii'))
             await self._reader.readuntil(b'Password: ')
             self._writer.write((self._password + '\n').encode('ascii'))
