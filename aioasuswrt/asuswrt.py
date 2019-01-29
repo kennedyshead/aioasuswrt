@@ -203,7 +203,7 @@ class AsusWrt:
     async def async_get_current_transfer_rates(self, use_cache=True):
         """Gets current transfer rates calculated in per second in bytes."""
         now = datetime.utcnow()
-        data = await self.async_get_packets_total(use_cache)
+        data = await self.async_get_bytes_total(use_cache)
         if self._rx_latest is None or self._tx_latest is None:
             self._latest_transfer_check = now
             self._rx_latest = data[0]
