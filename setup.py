@@ -13,7 +13,7 @@ from os import path
 here = path.abspath(path.dirname(__file__))
 
 __author__ = 'Magnus Knutas'
-VERSION = '1.1.19'
+VERSION = '1.1.20'
 
 setup(
     name='aioasuswrt',
@@ -35,7 +35,7 @@ setup(
     ],
     keywords='Asuswrt wrapper',
     packages=find_packages(exclude=['contrib', 'docs', 'tests']),
-    install_requires=['asyncssh'],
+    install_requires=['asyncssh==1.15.0'],
     test_suite='tests',
     tests_require=['pytest',
                    'pytest-cov',
