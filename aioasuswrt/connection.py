@@ -1,7 +1,7 @@
 """Module for connections."""
 import asyncio
 import logging
-from asyncio import LimitOverrunError
+from asyncio import LimitOverrunError, TimeoutError
 
 import asyncssh
 
@@ -33,8 +33,8 @@ class SshConnection:
         if not self.is_connected:
             await self.async_connect()
         try:
-            result = await self._client.run(
-                "%s && %s" % (_PATH_EXPORT_COMMAND, command))
+            result = await asyncio.wait_for(await self._client.run(
+                "%s && %s" % (_PATH_EXPORT_COMMAND, command)), 9)
         except asyncssh.misc.ChannelOpenError:
             if not retry:
                 await self.async_connect()
@@ -43,6 +43,10 @@ class SshConnection:
                 self._connected = False
                 _LOGGER.error("No connection to host")
                 return []
+        except TimeoutError:
+            self._connected = False
+            _LOGGER.error("Host timeout.")
+            return []
 
         self._connected = True
         return result.stdout.split('\n')
@@ -94,13 +98,17 @@ class TelnetConnection:
                 self._writer.write('{}\n'.format(
                     "%s && %s" % (
                         _PATH_EXPORT_COMMAND, command)).encode('ascii'))
-                data = ((await self._reader.readuntil(self._prompt_string)).
-                    split(b'\n')[1:-1])
+                try:
+                    data = ((await asyncio.wait_for(self._reader.readuntil(
+                        self._prompt_string), 9)).split(b'\n')[1:-1])
+                except TimeoutError:
+                    _LOGGER.error("Host timeout.")
+                    return []
         except (BrokenPipeError, LimitOverrunError):
             if first_try:
                 return await self.async_run_command(command, False)
             else:
-                _LOGGER.warning("connection is lost for router")
+                _LOGGER.warning("connection is lost to host.")
                 return[]
         return [line.decode('utf-8') for line in data]
 
@@ -111,15 +119,19 @@ class TelnetConnection:
 
         with (await self._io_lock):
             try:
-                await self._reader.readuntil(b'login: ')
+                await asyncio.wait_for(self._reader.readuntil(b'login: '), 9)
             except asyncio.streams.IncompleteReadError:
                 _LOGGER.error(
                     "Unable to read from router on %s:%s" % (
                         self._host, self._port))
                 return
+            except TimeoutError:
+                _LOGGER.error("Host timeout.")
             self._writer.write((self._username + '\n').encode('ascii'))
             await self._reader.readuntil(b'Password: ')
+
             self._writer.write((self._password + '\n').encode('ascii'))
+
             self._prompt_string = (await self._reader.readuntil(
                 b'#')).split(b'\n')[-1]
         self._connected = True
