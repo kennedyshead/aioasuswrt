@@ -98,18 +98,21 @@ class TelnetConnection:
                 self._writer.write('{}\n'.format(
                     "%s && %s" % (
                         _PATH_EXPORT_COMMAND, command)).encode('ascii'))
-                try:
-                    data = ((await asyncio.wait_for(self._reader.readuntil(
-                        self._prompt_string), 9)).split(b'\n')[1:-1])
-                except TimeoutError:
-                    _LOGGER.error("Host timeout.")
-                    return []
+                data = ((await asyncio.wait_for(self._reader.readuntil(
+                    self._prompt_string), 9)).split(b'\n')[1:-1])
+
         except (BrokenPipeError, LimitOverrunError):
             if first_try:
                 return await self.async_run_command(command, False)
             else:
                 _LOGGER.warning("connection is lost to host.")
                 return[]
+        except TimeoutError:
+            _LOGGER.error("Host timeout.")
+            return []
+        finally:
+            self._writer.close()
+
         return [line.decode('utf-8') for line in data]
 
     async def async_connect(self):
@@ -140,3 +143,7 @@ class TelnetConnection:
     def is_connected(self):
         """Do we have a connection."""
         return self._connected
+
+    async def disconnect(self):
+        """Disconnects the client"""
+        self._writer.close()
