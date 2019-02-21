@@ -44,6 +44,7 @@ class SshConnection:
                 _LOGGER.error("No connection to host")
                 return []
         except TimeoutError:
+            del self._client
             self._connected = False
             _LOGGER.error("Host timeout.")
             return []
