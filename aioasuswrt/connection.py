@@ -8,6 +8,7 @@ import asyncssh
 _LOGGER = logging.getLogger(__name__)
 
 _PATH_EXPORT_COMMAND = "PATH=$PATH:/bin:/usr/sbin:/sbin"
+asyncssh.set_log_level('WARNING')
 
 
 class SshConnection:
