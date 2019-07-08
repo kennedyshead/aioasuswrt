@@ -35,7 +35,7 @@ setup(
     ],
     keywords='Asuswrt wrapper',
     packages=find_packages(exclude=['contrib', 'docs', 'tests']),
-    install_requires=['asyncssh==1.15.0'],
+    install_requires=['asyncssh'],
     test_suite='tests',
     tests_require=['pytest',
                    'pytest-cov',
