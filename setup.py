@@ -15,13 +15,17 @@ here = path.abspath(path.dirname(__file__))
 __author__ = 'Magnus Knutas'
 VERSION = '1.1.22'
 
+with open("README.md", "r") as fh:
+    long_description = fh.read()
+
 setup(
     name='aioasuswrt',
     version=VERSION,
     description='Api wrapper for Asuswrt https://www.asus.com/ASUSWRT/',
     setup_requires=['setuptools-markdown',
                     'pytest-runner'],
-    long_description_markdown_filename='README.md',
+    long_description=long_description,
+    long_description_content_type="text/markdown",
     url='https://github.com/kennedyshead/aioasuswrt',
     download_url='https://github.com/kennedyshead/aioasuswrt/archive/%s.tar.gz' % VERSION,
     author=__author__,
