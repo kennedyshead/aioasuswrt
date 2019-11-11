@@ -53,6 +53,126 @@ _ARP_REGEX = re.compile(
 _RX_COMMAND = 'cat /sys/class/net/eth0/statistics/rx_bytes'
 _TX_COMMAND = 'cat /sys/class/net/eth0/statistics/tx_bytes'
 
+GET_LIST = {
+    "DHCP": [
+        "dhcp_dns1_x",
+        "dhcp_dns2_x",
+        "dhcp_enable_x",
+        "dhcp_start",
+        "dhcp_end",
+        "dhcp_lease"
+    ],
+    "MODEL": [ "model" ],
+    "QOS": [
+        "qos_ack",
+        "qos_atm",
+        "qos_burst0",
+        "qos_burst1",
+        "qos_default",
+        "qos_enable",
+        "qos_fin",
+        "qos_ibw",
+        "qos_ibw1",
+        "qos_icmp",
+        "qos_irates",
+        "qos_method",
+        "qos_obw",
+        "qos_obw1",
+        "qos_orules",
+        "qos_overhead",
+        "qos_reset",
+        "qos_rst",
+        "qos_sched",
+        "qos_sticky",
+        "qos_syn",
+        "qos_type"
+    ],
+    "REBOOT": [
+        "reboot_schedule",
+        "reboot_schedule_enable",
+        "reboot_time"
+    ],
+    "WLAN": [
+        "wan_dns",
+        "wan_domain",
+        "wan_enable",
+        "wan_expires",
+        "wan_gateway",
+        "wan_ipaddr",
+        "wan_lease",
+        "wan_mtu",
+        "wan_realip_ip",
+        "wan_realip_state"
+    ],
+    "2G_GUEST_1": [
+        "wl0.1_bss_enabled",
+        "wl0.1_lanaccess",
+        "wl0.1_ssid",
+        "wl0.1_wpa_psk"
+    ],
+    "2G_GUEST_2": [
+        "wl0.2_bss_enabled",
+        "wl0.2_lanaccess",
+        "wl0.2_ssid",
+        "wl0.2_wpa_psk"
+    ],
+    "2G_GUEST_3": [
+        "wl0.3_bss_enabled",
+        "wl0.3_lanaccess",
+        "wl0.3_ssid",
+        "wl0.3_wpa_psk"
+    ],
+    "2G_WIFI": [
+        "wl0_bss_enabled",
+        "wl0_chanspec",
+        "wl0_ssid",
+        "wl0_wpa_psk"
+    ],
+    "5G_GUEST_1": [
+        "wl1.1_bss_enabled",
+        "wl1.1_lanaccess",
+        "wl1.1_ssid",
+        "wl1.1_wpa_psk"
+    ],
+    "5G_GUEST_2": [
+        "wl1.2_bss_enabled",
+        "wl1.2_lanaccess",
+        "wl1.2_ssid",
+        "wl1.2_wpa_psk"
+    ],
+    "5G_GUEST_3": [
+        "wl1.3_bss_enabled",
+        "wl1.3_lanaccess",
+        "wl1.3_ssid",
+        "wl1.3_wpa_psk"
+    ],
+    "5G_WIFI": [
+        "wl1_bss_enabled",
+        "wl1_chanspec",
+        "wl1_ssid",
+        "wl1_wpa_psk"
+    ],
+    "FIRMWARE": [
+        "buildinfo",
+        "buildno",
+        "buildno_org",
+        "firmver",
+        "firmware_check",
+        "firmware_check_enable",
+        "firmware_path",
+        "firmware_server",
+        "webs_last_info",
+        "webs_notif_flag",
+        "webs_state_REQinfo",
+        "webs_state_error",
+        "webs_state_flag",
+        "webs_state_odm",
+        "webs_state_update",
+        "webs_state_upgrade",
+        "webs_state_url"
+    ]
+}
+
 Device = namedtuple('Device', ['mac', 'ip', 'name'])
 
 
@@ -97,6 +217,20 @@ class AsusWrt:
         else:
             self.connection = SshConnection(
                 host, port, username, password, ssh_key)
+
+    async def async_get_nvram(self, toGet):
+        data = {}
+        if toGet in GET_LIST:
+            lines = await self.connection.async_run_command('nvram show')
+            for item in GET_LIST[toGet]:
+                regex = rf"{item}=([\w.\-/: ]+)"
+                for line in lines:
+                    result = re.findall(regex, line)
+                    if result:
+                        data[item] = result[0]
+                        break
+        return data
+
 
     async def async_get_wl(self):
         lines = await self.connection.async_run_command(_WL_CMD)
