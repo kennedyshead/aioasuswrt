@@ -13,7 +13,7 @@ _LOGGER = logging.getLogger(__name__)
 
 CHANGE_TIME_CACHE_DEFAULT = 5  # Default 60s
 
-_LEASES_CMD = 'cat /var/lib/misc/dnsmasq.leases'
+_LEASES_CMD = 'cat {}/dnsmasq.leases'
 _LEASES_REGEX = re.compile(
     r'\w+\s' +
     r'(?P<mac>(([0-9a-fA-F]{2}[:-]){5}([0-9a-fA-F]{2})))\s' +
@@ -50,8 +50,8 @@ _ARP_REGEX = re.compile(
     r'\s' +
     r'.*')
 
-_RX_COMMAND = 'cat /sys/class/net/eth0/statistics/rx_bytes'
-_TX_COMMAND = 'cat /sys/class/net/eth0/statistics/tx_bytes'
+_RX_COMMAND = 'cat /sys/class/net/{}/statistics/rx_bytes'
+_TX_COMMAND = 'cat /sys/class/net/{}/statistics/tx_bytes'
 
 GET_LIST = {
     "DHCP": [
@@ -199,7 +199,7 @@ class AsusWrt:
 
     def __init__(self, host, port=None, use_telnet=False, username=None,
                  password=None, ssh_key=None, mode='router', require_ip=False,
-                 time_cache=CHANGE_TIME_CACHE_DEFAULT):
+                 time_cache=CHANGE_TIME_CACHE_DEFAULT, interface='eth0', dnsmasq='/var/lib/misc'):
         """Init function."""
         self.require_ip = require_ip
         self.mode = mode
@@ -210,6 +210,8 @@ class AsusWrt:
         self._trans_cache_timer = None
         self._transfer_rates_cache = None
         self._latest_transfer_data = 0, 0
+        self.interface=interface
+        self.dnsmasq=dnsmasq
 
         if use_telnet:
             self.connection = TelnetConnection(
@@ -244,7 +246,7 @@ class AsusWrt:
         return devices
 
     async def async_get_leases(self, cur_devices):
-        lines = await self.connection.async_run_command(_LEASES_CMD)
+        lines = await self.connection.async_run_command(_LEASES_CMD.format(self.dnsmasq))
         if not lines:
             return {}
         lines = [line for line in lines if not line.startswith('duid ')]
@@ -326,12 +328,12 @@ class AsusWrt:
 
     async def async_get_rx(self):
         """Get current RX total given in bytes."""
-        data = await self.connection.async_run_command(_RX_COMMAND)
+        data = await self.connection.async_run_command(_RX_COMMAND.format(self.interface))
         return int(data[0])
 
     async def async_get_tx(self):
         """Get current RX total given in bytes."""
-        data = await self.connection.async_run_command(_TX_COMMAND)
+        data = await self.connection.async_run_command(_TX_COMMAND.format(self.interface))
         return int(data[0])
 
     async def async_get_current_transfer_rates(self, use_cache=True):
