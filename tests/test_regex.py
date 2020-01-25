@@ -112,11 +112,12 @@ WAKE_DEVICES_NO_IP = {
 
 
 def RunCommandMock(command, *args, **kwargs):
+    print(command, *args, **kwargs)
     f = asyncio.Future()
     if command == _WL_CMD:
         f.set_result(WL_DATA)
         return f
-    if command == _LEASES_CMD:
+    if command == _LEASES_CMD.format('/var/lib/misc'):
         f.set_result(LEASES_DATA)
         return f
     if command == _IP_NEIGH_CMD:
@@ -125,10 +126,10 @@ def RunCommandMock(command, *args, **kwargs):
     if command == _ARP_CMD:
         f.set_result(ARP_DATA)
         return f
-    if command == _RX_COMMAND:
+    if command == _RX_COMMAND.format('eth0'):
         f.set_result(RX_DATA)
         return f
-    if command == _TX_COMMAND:
+    if command == _TX_COMMAND.format('eth0'):
         f.set_result(TX_DATA)
         return f
     raise Exception("Unhandled command: %s" % command)
