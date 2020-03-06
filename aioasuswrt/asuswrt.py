@@ -329,12 +329,12 @@ class AsusWrt:
     async def async_get_rx(self):
         """Get current RX total given in bytes."""
         data = await self.connection.async_run_command(_RX_COMMAND.format(self.interface))
-        return int(data[0])
+        return int(data[0]) if data is not None else None
 
     async def async_get_tx(self):
         """Get current RX total given in bytes."""
         data = await self.connection.async_run_command(_TX_COMMAND.format(self.interface))
-        return int(data[0])
+        return int(data[0]) if data is not None else None
 
     async def async_get_current_transfer_rates(self, use_cache=True):
         """Gets current transfer rates calculated in per second in bytes."""
