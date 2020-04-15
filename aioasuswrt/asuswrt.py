@@ -11,7 +11,7 @@ from aioasuswrt.helpers import convert_size
 
 _LOGGER = logging.getLogger(__name__)
 
-CHANGE_TIME_CACHE_DEFAULT = 5  # Default 60s
+CHANGE_TIME_CACHE_DEFAULT = 5  # Default 5s
 
 _LEASES_CMD = 'cat {}/dnsmasq.leases'
 _LEASES_REGEX = re.compile(
@@ -209,6 +209,8 @@ class AsusWrt:
         self._latest_transfer_check = None
         self._cache_time = time_cache
         self._trans_cache_timer = None
+        self._dev_cache_timer = None
+        self._devices_cache = None
         self._transfer_rates_cache = None
         self._latest_transfer_data = 0, 0
         self.interface = interface
@@ -293,12 +295,17 @@ class AsusWrt:
                 devices[mac] = Device(mac, device['ip'], None)
         return devices
 
-    async def async_get_connected_devices(self):
+    async def async_get_connected_devices(self, use_cache=True):
         """Retrieve data from ASUSWRT.
 
         Calls various commands on the router and returns the superset of all
         responses. Some commands will not work on some routers.
         """
+        now = datetime.utcnow()
+        if use_cache and self._dev_cache_timer and self._cache_time > \
+                (now - self._dev_cache_timer).total_seconds():
+            return self._devices_cache
+
         devices = {}
         dev = await self.async_get_wl()
         devices.update(dev)
@@ -314,6 +321,9 @@ class AsusWrt:
         for key in devices:
             if not self.require_ip or devices[key].ip is not None:
                 ret_devices[key] = devices[key]
+
+        self._devices_cache = ret_devices
+        self._dev_cache_timer = now
         return ret_devices
 
     async def async_get_bytes_total(self, use_cache=True):
