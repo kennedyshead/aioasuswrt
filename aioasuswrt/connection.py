@@ -33,25 +33,27 @@ class SshConnection:
         """
         if not self.is_connected:
             await self.async_connect()
-        try:
-            result = await asyncio.wait_for(self._client.run(
-                "%s && %s" % (_PATH_EXPORT_COMMAND, command)), 9)
-        except asyncssh.misc.ChannelOpenError:
-            if not retry:
-                await self.async_connect()
-                return self.async_run_command(command, retry=True)
-            else:
+            return await self.async_run_command(command, retry=True)
+        else:
+            try:
+                result = await asyncio.wait_for(self._client.run(
+                    "%s && %s" % (_PATH_EXPORT_COMMAND, command)), 9)
+            except asyncssh.misc.ChannelOpenError:
+                if not retry:
+                    await self.async_connect()
+                    return await self.async_run_command(command, retry=True)
+                else:
+                    self._connected = False
+                    _LOGGER.error("No connection to host")
+                    return []
+            except TimeoutError:
+                self._client = None
                 self._connected = False
-                _LOGGER.error("No connection to host")
+                _LOGGER.error("Host timeout.")
                 return []
-        except TimeoutError:
-            del self._client
-            self._connected = False
-            _LOGGER.error("Host timeout.")
-            return []
 
-        self._connected = True
-        return result.stdout.split('\n')
+            self._connected = True
+            return result.stdout.split('\n')
 
     @property
     def is_connected(self):
