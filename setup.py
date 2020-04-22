@@ -13,7 +13,7 @@ from os import path
 here = path.abspath(path.dirname(__file__))
 
 __author__ = 'Magnus Knutas'
-VERSION = '1.2.4'
+VERSION = '1.2.5'
 
 with open("README.md", "r") as fh:
     long_description = fh.read()
