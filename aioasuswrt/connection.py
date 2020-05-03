@@ -38,7 +38,7 @@ class SshConnection:
             try:
                 result = await asyncio.wait_for(self._client.run(
                     "%s && %s" % (_PATH_EXPORT_COMMAND, command)), 9)
-            except asyncssh.misc.ChannelOpenError:
+            except (asyncssh.misc.ChannelOpenError, AttributeError):
                 if not retry:
                     await self.async_connect()
                     return await self.async_run_command(command, retry=True)
