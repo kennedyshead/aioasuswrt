@@ -55,6 +55,9 @@ _TX_COMMAND = 'cat /sys/class/net/{}/statistics/tx_bytes'
 
 _MEMINFO_CMD = 'cat /proc/meminfo'
 _LOADAVG_CMD = 'cat /proc/loadavg'
+_ADDHOST_CMD = 'cat /etc/hosts | grep -q "{ipaddress} {hostname}" || ' \
+               '(echo "{ipaddress} {hostname}" >> /etc/hosts && ' \
+               'kill -HUP `cat /var/run/dnsmasq.pid`)'
 
 GET_LIST = {
     "DHCP": [
@@ -392,7 +395,7 @@ class AsusWrt:
         return "%s/s" % convert_size(rx), "%s/s" % convert_size(tx)
 
     async def async_get_loadavg(self):
-        """Gets loadavg"""
+        """Gets loadavg."""
         loadavg = list(
             map(lambda avg: float(avg) * 100,
                 (await self.connection.async_run_command(_LOADAVG_CMD))[0]
@@ -400,7 +403,7 @@ class AsusWrt:
         return loadavg
 
     async def async_get_meminfo(self):
-        """Gets Memory information"""
+        """Gets Memory information."""
         meminfo = await self.connection.async_run_command(_MEMINFO_CMD)
         meminfo = filter(lambda s: s != '', meminfo)
         memdict = {}
@@ -410,6 +413,10 @@ class AsusWrt:
             memdict[name][0] = int(memdict[name][0])
 
         return memdict
+
+    async def async_add_dns_record(self, hostname, ipaddress):
+        """Add record to /etc/hosts and HUP dnsmask to catch this record."""
+        return await self.connection.async_run_command(_ADDHOST_CMD.format(hostname=hostname, ipaddress=ipaddress))
 
     @property
     def is_connected(self):
