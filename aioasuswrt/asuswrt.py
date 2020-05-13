@@ -53,6 +53,9 @@ _ARP_REGEX = re.compile(
 _RX_COMMAND = 'cat /sys/class/net/{}/statistics/rx_bytes'
 _TX_COMMAND = 'cat /sys/class/net/{}/statistics/tx_bytes'
 
+_MEMINFO_CMD = 'cat /proc/meminfo'
+_LOADAVG_CMD = 'cat /proc/loadavg'
+
 GET_LIST = {
     "DHCP": [
         "dhcp_dns1_x",
@@ -387,6 +390,26 @@ class AsusWrt:
         rx, tx = await self.async_get_current_transfer_rates(use_cache)
 
         return "%s/s" % convert_size(rx), "%s/s" % convert_size(tx)
+
+    async def async_get_loadavg(self):
+        """Gets loadavg"""
+        loadavg = list(
+            map(lambda avg: float(avg) * 100,
+                (await self.connection.async_run_command(_LOADAVG_CMD))[0]
+                .split(' ')[0:3]))
+        return loadavg
+
+    async def async_get_meminfo(self):
+        """Gets loadavg"""
+        meminfo = await self.connection.async_run_command(_MEMINFO_CMD)
+        meminfo = filter(lambda s: s != '', meminfo)
+        memdict = {}
+        for item in list(map(lambda i: i.split(':'), meminfo)):
+            name = re.sub(r'(?<!^)(?=[A-Z])', '_', item[0]).lower()
+            memdict[name] = list(filter(lambda i: i != '', item[1].split(' ')))
+            memdict[name][0] = int(memdict[name][0])
+
+        return memdict
 
     @property
     def is_connected(self):
