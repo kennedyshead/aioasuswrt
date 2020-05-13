@@ -400,7 +400,7 @@ class AsusWrt:
         return loadavg
 
     async def async_get_meminfo(self):
-        """Gets loadavg"""
+        """Gets Memory information"""
         meminfo = await self.connection.async_run_command(_MEMINFO_CMD)
         meminfo = filter(lambda s: s != '', meminfo)
         memdict = {}
