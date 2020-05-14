@@ -59,6 +59,12 @@ _ADDHOST_CMD = 'cat /etc/hosts | grep -q "{ipaddress} {hostname}" || ' \
                '(echo "{ipaddress} {hostname}" >> /etc/hosts && ' \
                'kill -HUP `cat /var/run/dnsmasq.pid`)'
 
+_NETDEV_CMD = 'cat /proc/net/dev'
+_NETDEV_FIELDS = [
+    'tx_bytes', 'tx_packets', 'tx_errs', 'tx_drop', 'tx_fifo', 'tx_frame', 'tx_compressed', 'tx_multicast',
+    'rx_bytes', 'rx_packets', 'rx_errs', 'rx_drop', 'rx_fifo', 'rx_colls', 'rx_carrier', 'rx_compressed'
+]
+
 GET_LIST = {
     "DHCP": [
         "dhcp_dns1_x",
@@ -417,6 +423,13 @@ class AsusWrt:
     async def async_add_dns_record(self, hostname, ipaddress):
         """Add record to /etc/hosts and HUP dnsmask to catch this record."""
         return await self.connection.async_run_command(_ADDHOST_CMD.format(hostname=hostname, ipaddress=ipaddress))
+
+    async def async_get_interfaces_counts(self):
+        """Gets counters for all network interfaces."""
+        lines = await self.connection.async_run_command(_NETDEV_CMD)
+        lines = list(map(lambda i: list(filter(lambda j: j !='', i.split(' '))), lines[2:-1]))
+        interfaces = map(lambda i: [i[0][0:-1], dict(zip(_NETDEV_FIELDS, map(lambda j: int(j), i[1:])))], lines)
+        return dict(interfaces)
 
     @property
     def is_connected(self):
