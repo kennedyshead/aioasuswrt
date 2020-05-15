@@ -65,6 +65,8 @@ _NETDEV_FIELDS = [
     'rx_bytes', 'rx_packets', 'rx_errs', 'rx_drop', 'rx_fifo', 'rx_colls', 'rx_carrier', 'rx_compressed'
 ]
 
+_TEMP_CMD = 'wl -i eth1 phy_tempsense ; wl -i eth2 phy_tempsense ; head -c20 /proc/dmu/temperature'
+
 GET_LIST = {
     "DHCP": [
         "dhcp_dns1_x",
@@ -401,7 +403,7 @@ class AsusWrt:
         return "%s/s" % convert_size(rx), "%s/s" % convert_size(tx)
 
     async def async_get_loadavg(self):
-        """Gets loadavg."""
+        """Get loadavg."""
         loadavg = list(
             map(lambda avg: float(avg),
                 (await self.connection.async_run_command(_LOADAVG_CMD))[0]
@@ -409,7 +411,7 @@ class AsusWrt:
         return loadavg
 
     async def async_get_meminfo(self):
-        """Gets Memory information."""
+        """Get Memory information."""
         meminfo = await self.connection.async_run_command(_MEMINFO_CMD)
         meminfo = filter(lambda s: s != '', meminfo)
         memdict = {}
@@ -425,11 +427,17 @@ class AsusWrt:
         return await self.connection.async_run_command(_ADDHOST_CMD.format(hostname=hostname, ipaddress=ipaddress))
 
     async def async_get_interfaces_counts(self):
-        """Gets counters for all network interfaces."""
+        """Get counters for all network interfaces."""
         lines = await self.connection.async_run_command(_NETDEV_CMD)
-        lines = list(map(lambda i: list(filter(lambda j: j !='', i.split(' '))), lines[2:-1]))
+        lines = list(map(lambda i: list(filter(lambda j: j != '', i.split(' '))), lines[2:-1]))
         interfaces = map(lambda i: [i[0][0:-1], dict(zip(_NETDEV_FIELDS, map(lambda j: int(j), i[1:])))], lines)
         return dict(interfaces)
+
+    async def async_get_temperature(self):
+        """Get temperature for 2.4GHz/5.0GHz/CPU."""
+        [r24, r50, cpu] = map(lambda l: l.split(' '), await self.connection.async_run_command(_TEMP_CMD))
+        [r24, r50, cpu] = [float(r24[0]) / 2 + 20, float(r50[0]) / 2 + 20, float(cpu[2])]
+        return {'2.4GHz': r24, '5.0GHz': r50, 'CPU': cpu}
 
     @property
     def is_connected(self):
