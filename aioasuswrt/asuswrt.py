@@ -403,7 +403,7 @@ class AsusWrt:
     async def async_get_loadavg(self):
         """Gets loadavg."""
         loadavg = list(
-            map(lambda avg: float(avg) * 100,
+            map(lambda avg: float(avg),
                 (await self.connection.async_run_command(_LOADAVG_CMD))[0]
                 .split(' ')[0:3]))
         return loadavg
