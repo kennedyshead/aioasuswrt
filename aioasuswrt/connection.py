@@ -16,8 +16,6 @@ class SshConnection:
 
     def __init__(self, host, port, username, password, ssh_key):
         """Initialize the SSH connection properties."""
-
-        self._connected = False
         self._host = host
         self._port = port or 22
         self._username = username
@@ -31,34 +29,37 @@ class SshConnection:
         Connect to the SSH server if not currently connected, otherwise
         use the existing connection.
         """
-        if not self.is_connected:
+        if self._client is None and not retry:
             await self.async_connect()
             return await self.async_run_command(command, retry=True)
         else:
-            try:
-                result = await asyncio.wait_for(self._client.run(
-                    "%s && %s" % (_PATH_EXPORT_COMMAND, command)), 9)
-            except (asyncssh.misc.ChannelOpenError, AttributeError):
-                if not retry:
-                    await self.async_connect()
-                    return await self.async_run_command(command, retry=True)
-                else:
-                    self._connected = False
-                    _LOGGER.error("No connection to host")
+            if self._client is not None:
+                try:
+                    result = await asyncio.wait_for(self._client.run(
+                        "%s && %s" % (_PATH_EXPORT_COMMAND, command)), 9)
+                except asyncssh.misc.ChannelOpenError:
+                    if not retry:
+                        await self.async_connect()
+                        return await self.async_run_command(
+                            command, retry=True)
+                    else:
+                        _LOGGER.error("Cant connect to host, giving up!")
+                        return []
+                except TimeoutError:
+                    self._client = None
+                    _LOGGER.error("Host timeout.")
                     return []
-            except TimeoutError:
-                self._client = None
-                self._connected = False
-                _LOGGER.error("Host timeout.")
-                return []
 
-            self._connected = True
-            return result.stdout.split('\n')
+                return result.stdout.split('\n')
+
+            else:
+                _LOGGER.error("Cant connect to host, giving up!")
+                return []
 
     @property
     def is_connected(self):
         """Do we have a connection."""
-        return self._connected
+        return self._client is not None
 
     async def async_connect(self):
         """Fetches the client or creates a new one."""
@@ -72,7 +73,6 @@ class SshConnection:
         }
 
         self._client = await asyncssh.connect(self._host, **kwargs)
-        self._connected = True
 
 
 class TelnetConnection:
