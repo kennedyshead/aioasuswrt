@@ -69,7 +69,8 @@ class SshConnection:
             'client_keys': [self._ssh_key] if self._ssh_key else None,
             'port': self._port,
             'password': self._password if self._password else None,
-            'known_hosts': None
+            'known_hosts': None,
+            'server_host_key_algs': ['ssh-rsa']
         }
 
         self._client = await asyncssh.connect(self._host, **kwargs)
