@@ -1,4 +1,5 @@
 """Module for Asuswrt."""
+import asyncio
 import inspect
 import logging
 import math
