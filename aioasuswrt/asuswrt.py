@@ -92,6 +92,47 @@ GET_LIST = {
         "reboot_schedule_enable",
         "reboot_time"
     ],
+    "WANS": [
+        "link_internet",
+        "wan_unit",
+        "wans_cap",
+        "wans_dualwan",
+        "wans_lanport",
+        "wans_lb_ratio",
+        "wans_mode",
+        "wans_routing_enable",
+        "wans_standby",
+    ],
+    "WAN0": [
+        "wan0_auxstate_t",
+        "wan0_dns",
+        "wan0_dns1_x",
+        "wan0_dns2_x",
+        "wan0_dnsenable_x",
+        "wan0_enable",
+        "wan0_gateway",
+        "wan0_ipaddr",
+        "wan0_is_usb_modem_ready",
+        "wan0_primary",
+        "wan0_sbstate_t",
+        "wan0_state_t",
+        "wan0_unit",
+    ],
+    "WAN1": [
+        "wan1_auxstate_t",
+        "wan1_dns",
+        "wan1_dns1_x",
+        "wan1_dns2_x",
+        "wan1_dnsenable_x",
+        "wan1_enable",
+        "wan1_gateway",
+        "wan1_ipaddr",
+        "wan1_is_usb_modem_ready",
+        "wan1_primary",
+        "wan1_sbstate_t",
+        "wan1_state_t",
+        "wan1_unit",
+    ],
     "WLAN": [
         "wan_dns",
         "wan_domain",
@@ -387,6 +428,24 @@ class AsusWrt:
         rx, tx = await self.async_get_current_transfer_rates(use_cache)
 
         return "%s/s" % convert_size(rx), "%s/s" % convert_size(tx)
+    
+    async def async_get_wan(self):
+        """Gets status parameters relating to WAN"""
+        values = await asyncio.gather(
+            self.async_get_nvram("WANS"),
+            self.async_get_nvram("WAN0"),
+            self.async_get_nvram("WAN1"),
+        )
+        return {
+            "wans": values[0],
+            "wan0": values[1],
+            "wan1": values[2],
+        }
+
+    async def async_get_supported_functions(self):
+        """Gets comma seperated list of router supported functions"""
+        fn = await self.async_get_nvram("SUPPORT")
+        return fn.get("rc_support", "").split()
 
     @property
     def is_connected(self):
