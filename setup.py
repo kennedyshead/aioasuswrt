@@ -29,6 +29,7 @@ setup(
     download_url='https://github.com/kennedyshead/aioasuswrt/archive/%s.tar.gz' % VERSION,
     author=__author__,
     author_email='magnusknutas@gmail.com',
+    license="MIT",
     classifiers=[
         'Development Status :: 3 - Alpha',
         'Intended Audience :: Developers',
