@@ -53,6 +53,20 @@ _ARP_REGEX = re.compile(
 _RX_COMMAND = 'cat /sys/class/net/{}/statistics/rx_bytes'
 _TX_COMMAND = 'cat /sys/class/net/{}/statistics/tx_bytes'
 
+_MEMINFO_CMD = 'cat /proc/meminfo'
+_LOADAVG_CMD = 'cat /proc/loadavg'
+_ADDHOST_CMD = 'cat /etc/hosts | grep -q "{ipaddress} {hostname}" || ' \
+               '(echo "{ipaddress} {hostname}" >> /etc/hosts && ' \
+               'kill -HUP `cat /var/run/dnsmasq.pid`)'
+
+_NETDEV_CMD = 'cat /proc/net/dev'
+_NETDEV_FIELDS = [
+    'tx_bytes', 'tx_packets', 'tx_errs', 'tx_drop', 'tx_fifo', 'tx_frame', 'tx_compressed', 'tx_multicast',
+    'rx_bytes', 'rx_packets', 'rx_errs', 'rx_drop', 'rx_fifo', 'rx_colls', 'rx_carrier', 'rx_compressed'
+]
+
+_TEMP_CMD = 'wl -i eth1 phy_tempsense ; wl -i eth2 phy_tempsense ; head -c20 /proc/dmu/temperature'
+
 GET_LIST = {
     "DHCP": [
         "dhcp_dns1_x",
@@ -387,6 +401,43 @@ class AsusWrt:
         rx, tx = await self.async_get_current_transfer_rates(use_cache)
 
         return "%s/s" % convert_size(rx), "%s/s" % convert_size(tx)
+
+    async def async_get_loadavg(self):
+        """Get loadavg."""
+        loadavg = list(
+            map(lambda avg: float(avg),
+                (await self.connection.async_run_command(_LOADAVG_CMD))[0]
+                .split(' ')[0:3]))
+        return loadavg
+
+    async def async_get_meminfo(self):
+        """Get Memory information."""
+        meminfo = await self.connection.async_run_command(_MEMINFO_CMD)
+        meminfo = filter(lambda s: s != '', meminfo)
+        memdict = {}
+        for item in list(map(lambda i: i.split(':'), meminfo)):
+            name = re.sub(r'(?<!^)(?=[A-Z])', '_', item[0]).lower()
+            memdict[name] = list(filter(lambda i: i != '', item[1].split(' ')))
+            memdict[name][0] = int(memdict[name][0])
+
+        return memdict
+
+    async def async_add_dns_record(self, hostname, ipaddress):
+        """Add record to /etc/hosts and HUP dnsmask to catch this record."""
+        return await self.connection.async_run_command(_ADDHOST_CMD.format(hostname=hostname, ipaddress=ipaddress))
+
+    async def async_get_interfaces_counts(self):
+        """Get counters for all network interfaces."""
+        lines = await self.connection.async_run_command(_NETDEV_CMD)
+        lines = list(map(lambda i: list(filter(lambda j: j != '', i.split(' '))), lines[2:-1]))
+        interfaces = map(lambda i: [i[0][0:-1], dict(zip(_NETDEV_FIELDS, map(lambda j: int(j), i[1:])))], lines)
+        return dict(interfaces)
+
+    async def async_get_temperature(self):
+        """Get temperature for 2.4GHz/5.0GHz/CPU."""
+        [r24, r50, cpu] = map(lambda l: l.split(' '), await self.connection.async_run_command(_TEMP_CMD))
+        [r24, r50, cpu] = [float(r24[0]) / 2 + 20, float(r50[0]) / 2 + 20, float(cpu[2])]
+        return {'2.4GHz': r24, '5.0GHz': r50, 'CPU': cpu}
 
     @property
     def is_connected(self):
