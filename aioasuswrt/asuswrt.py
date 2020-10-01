@@ -15,9 +15,9 @@ CHANGE_TIME_CACHE_DEFAULT = 5  # Default 5s
 
 _LEASES_CMD = 'cat {}/dnsmasq.leases'
 _LEASES_REGEX = re.compile(
-    r'\w+\s' +
-    r'(?P<mac>(([0-9a-fA-F]{2}[:-]){5}([0-9a-fA-F]{2})))\s' +
-    r'(?P<ip>([0-9]{1,3}[\.]){3}[0-9]{1,3})\s' +
+    r'\w+\s'
+    r'(?P<mac>(([0-9a-fA-F]{2}[:-]){5}([0-9a-fA-F]{2})))\s'
+    r'(?P<ip>([0-9]{1,3}[\.]){3}[0-9]{1,3})\s'
     r'(?P<host>([^\s]+))')
 
 # Command to get both 5GHz and 2.4GHz clients
@@ -27,7 +27,7 @@ _WL_CMD = 'for dev in `nvram get wl1_vifs && nvram get wl0_vifs && ' \
           'wlanconfig $dev list | awk \'FNR > 1 {print substr($1, 0, 18)}\';' \
           ' else wl -i $dev assoclist; fi; done'
 _WL_REGEX = re.compile(
-    r'\w+\s' +
+    r'\w+\s'
     r'(?P<mac>(([0-9A-F]{2}[:-]){5}([0-9A-F]{2})))')
 
 _IP_NEIGH_CMD = 'ip neigh'
@@ -43,11 +43,11 @@ _IP_NEIGH_REGEX = re.compile(
 
 _ARP_CMD = 'arp -n'
 _ARP_REGEX = re.compile(
-    r'.+\s' +
-    r'\((?P<ip>([0-9]{1,3}[\.]){3}[0-9]{1,3})\)\s' +
-    r'.+\s' +
-    r'(?P<mac>(([0-9a-fA-F]{2}[:-]){5}([0-9a-fA-F]{2})))' +
-    r'\s' +
+    r'.+\s'
+    r'\((?P<ip>([0-9]{1,3}[\.]){3}[0-9]{1,3})\)\s'
+    r'.+\s'
+    r'(?P<mac>(([0-9a-fA-F]{2}[:-]){5}([0-9a-fA-F]{2})))'
+    r'\s'
     r'.*')
 
 _RX_COMMAND = 'cat /sys/class/net/{}/statistics/rx_bytes'
@@ -61,11 +61,14 @@ _ADDHOST_CMD = 'cat /etc/hosts | grep -q "{ipaddress} {hostname}" || ' \
 
 _NETDEV_CMD = 'cat /proc/net/dev'
 _NETDEV_FIELDS = [
-    'tx_bytes', 'tx_packets', 'tx_errs', 'tx_drop', 'tx_fifo', 'tx_frame', 'tx_compressed', 'tx_multicast',
-    'rx_bytes', 'rx_packets', 'rx_errs', 'rx_drop', 'rx_fifo', 'rx_colls', 'rx_carrier', 'rx_compressed'
+    'tx_bytes', 'tx_packets', 'tx_errs', 'tx_drop', 'tx_fifo', 'tx_frame',
+    'tx_compressed', 'tx_multicast',
+    'rx_bytes', 'rx_packets', 'rx_errs', 'rx_drop', 'rx_fifo', 'rx_colls',
+    'rx_carrier', 'rx_compressed'
 ]
 
-_TEMP_CMD = 'wl -i eth1 phy_tempsense ; wl -i eth2 phy_tempsense ; head -c20 /proc/dmu/temperature'
+_TEMP_CMD = 'wl -i eth1 phy_tempsense ; wl -i eth2 phy_tempsense ;' \
+            ' head -c20 /proc/dmu/temperature'
 
 GET_LIST = {
     "DHCP": [
@@ -237,11 +240,12 @@ class AsusWrt:
             self.connection = SshConnection(
                 host, port, username, password, ssh_key)
 
-    async def async_get_nvram(self, toGet):
+    async def async_get_nvram(self, to_get):
+        """Gets nvram"""
         data = {}
-        if toGet in GET_LIST:
+        if to_get in GET_LIST:
             lines = await self.connection.async_run_command('nvram show')
-            for item in GET_LIST[toGet]:
+            for item in GET_LIST[to_get]:
                 regex = rf"{item}=([\w.\-/: ]+)"
                 for line in lines:
                     result = re.findall(regex, line)
@@ -251,6 +255,7 @@ class AsusWrt:
         return data
 
     async def async_get_wl(self):
+        """gets wl"""
         lines = await self.connection.async_run_command(_WL_CMD)
         if not lines:
             return {}
@@ -262,6 +267,7 @@ class AsusWrt:
         return devices
 
     async def async_get_leases(self, cur_devices):
+        """Gets leases"""
         lines = await self.connection.async_run_command(
             _LEASES_CMD.format(self.dnsmasq))
         if not lines:
@@ -281,6 +287,7 @@ class AsusWrt:
         return devices
 
     async def async_get_neigh(self, cur_devices):
+        """Gets neigh"""
         lines = await self.connection.async_run_command(_IP_NEIGH_CMD)
         if not lines:
             return {}
@@ -298,6 +305,7 @@ class AsusWrt:
         return devices
 
     async def async_get_arp(self):
+        """Gets arp"""
         lines = await self.connection.async_run_command(_ARP_CMD)
         if not lines:
             return {}
@@ -412,31 +420,38 @@ class AsusWrt:
 
     async def async_get_meminfo(self):
         """Get Memory information."""
-        meminfo = await self.connection.async_run_command(_MEMINFO_CMD)
-        meminfo = filter(lambda s: s != '', meminfo)
-        memdict = {}
-        for item in list(map(lambda i: i.split(':'), meminfo)):
+        memory_info = await self.connection.async_run_command(_MEMINFO_CMD)
+        memory_info = filter(lambda s: s != '', memory_info)
+        ret = {}
+        for item in list(map(lambda i: i.split(':'), memory_info)):
             name = re.sub(r'(?<!^)(?=[A-Z])', '_', item[0]).lower()
-            memdict[name] = list(filter(lambda i: i != '', item[1].split(' ')))
-            memdict[name][0] = int(memdict[name][0])
+            ret[name] = list(filter(lambda i: i != '', item[1].split(' ')))
+            ret[name][0] = int(ret[name][0])
 
-        return memdict
+        return ret
 
     async def async_add_dns_record(self, hostname, ipaddress):
         """Add record to /etc/hosts and HUP dnsmask to catch this record."""
-        return await self.connection.async_run_command(_ADDHOST_CMD.format(hostname=hostname, ipaddress=ipaddress))
+        return await self.connection.async_run_command(
+            _ADDHOST_CMD.format(hostname=hostname, ipaddress=ipaddress))
 
     async def async_get_interfaces_counts(self):
         """Get counters for all network interfaces."""
         lines = await self.connection.async_run_command(_NETDEV_CMD)
-        lines = list(map(lambda i: list(filter(lambda j: j != '', i.split(' '))), lines[2:-1]))
-        interfaces = map(lambda i: [i[0][0:-1], dict(zip(_NETDEV_FIELDS, map(lambda j: int(j), i[1:])))], lines)
+        lines = list(
+            map(lambda i: list(filter(lambda j: j != '', i.split(' '))),
+                lines[2:-1]))
+        interfaces = map(lambda i: [i[0][0:-1], dict(
+            zip(_NETDEV_FIELDS, map(lambda j: int(j), i[1:])))], lines)
         return dict(interfaces)
 
     async def async_get_temperature(self):
         """Get temperature for 2.4GHz/5.0GHz/CPU."""
-        [r24, r50, cpu] = map(lambda l: l.split(' '), await self.connection.async_run_command(_TEMP_CMD))
-        [r24, r50, cpu] = [float(r24[0]) / 2 + 20, float(r50[0]) / 2 + 20, float(cpu[2])]
+        [r24, r50, cpu] = map(lambda l: l.split(' '),
+                              await self.connection.async_run_command(
+                                  _TEMP_CMD))
+        [r24, r50, cpu] = [float(r24[0]) / 2 + 20, float(r50[0]) / 2 + 20,
+                           float(cpu[2])]
         return {'2.4GHz': r24, '5.0GHz': r50, 'CPU': cpu}
 
     @property
