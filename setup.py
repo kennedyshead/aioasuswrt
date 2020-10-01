@@ -18,6 +18,21 @@ VERSION = '1.2.8'
 with open("README.md", "r") as fh:
     long_description = fh.read()
 
+install_requires = [
+    'asyncssh==2.3.0'
+]
+
+tests_require = [
+    'pytest',
+    'pytest-cov',
+    'pytest-mock',
+    'pytest-asyncio'
+]
+
+extras_require = {
+    'dev': ['check-manifest'],
+}
+
 setup(
     name='aioasuswrt',
     version=VERSION,
@@ -39,13 +54,8 @@ setup(
     ],
     keywords='Asuswrt wrapper',
     packages=find_packages(exclude=['contrib', 'docs', 'tests']),
-    install_requires=['asyncssh==2.3.0'],
+    install_requires=install_requires,
     test_suite='tests',
-    tests_require=['pytest',
-                   'pytest-cov',
-                   'pytest-mock',
-                   'pytest-asyncio'],
-    extras_require={
-        'dev': ['check-manifest'],
-    },
+    tests_require=tests_require,
+    extras_require=extras_require,
 )
