@@ -56,6 +56,6 @@ setup(
     packages=find_packages(exclude=['contrib', 'docs', 'tests']),
     install_requires=install_requires,
     test_suite='tests',
-    tests_require=tests_require+install_requires,
+    tests_require=tests_require,
     extras_require=extras_require,
 )
