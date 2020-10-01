@@ -1,4 +1,4 @@
-Small wrapper for asuswrt.
+Small wrapper for asuswrt. ![Python package](https://github.com/kennedyshead/aioasuswrt/workflows/Python%20package/badge.svg)
 
 ### How to run tests
 
