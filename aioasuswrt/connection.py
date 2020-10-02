@@ -2,7 +2,7 @@
 import asyncio
 import logging
 from asyncio import LimitOverrunError, TimeoutError
-from math import ceil
+from math import floor
 
 import asyncssh
 
@@ -26,7 +26,6 @@ class SshConnection:
 
     async def async_run_command(self, command, retry=False):
         """Run commands through an SSH connection.
-
         Connect to the SSH server if not currently connected, otherwise
         use the existing connection.
         """
@@ -107,7 +106,8 @@ class TelnetConnection:
                     self._prompt_string), 9)).split(b'\n')
                 # Let's find the number of elements the cmd takes
                 cmd_len = len(self._prompt_string) + len(full_cmd)
-                start_split = ceil(cmd_len / self._linebreak)
+                # We have to do floor + 1 to handle the infinite case correct
+                start_split = floor(cmd_len / self._linebreak) + 1
                 data = data[start_split:-1]
         except (BrokenPipeError, LimitOverrunError):
             if first_try:
@@ -145,27 +145,26 @@ class TelnetConnection:
 
             self._prompt_string = (await self._reader.readuntil(
                 b'#')).split(b'\n')[-1]
+
+            # Let's determine if any linebreaks are added
+            # Write some arbitrary long string.
+            if self._linebreak is None:
+                self._writer.write((" " * 200 + "\n").encode('ascii'))
+                self._determine_linebreak(await self._reader.readuntil(
+                    self._prompt_string))
+
         self._connected = True
 
-        if self._linebreak is None:
-            await self._determine_linebreak()
-
-    async def _determine_linebreak(self):
+    def _determine_linebreak(self, input_bytes : bytes):
         """ Telnet or asyncio seems to be adding linebreaks due to terminal
         size, try to determine here what the column number is."""
-        if not self.is_connected:
-            await self.async_connect()
-
-        # Let's send a long line, and read back how the reader splits the line
-        self._writer.write((" " * 200 + "\n").encode('ascii'))
-        data = (await self._reader.readuntil(self._prompt_string)
-                ).decode('utf-8').split('\n')
-
+        # Let's convert the data to the expected format
+        data = input_bytes.decode('utf-8').split('\n')
         if len(data) == 1:
             # There was no split, so assume infinite
             self._linebreak = float('inf')
         else:
-            # The linebreak is the lenght of the prompt string + the first line
+            # The linebreak is the length of the prompt string + the first line
             self._linebreak = len(self._prompt_string) + len(data[0])
 
             if len(data) > 2:
