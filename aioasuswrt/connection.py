@@ -159,7 +159,7 @@ class TelnetConnection:
         """ Telnet or asyncio seems to be adding linebreaks due to terminal
         size, try to determine here what the column number is."""
         # Let's convert the data to the expected format
-        data = input_bytes.decode('utf-8').split('\n')
+        data = input_bytes.decode('utf-8').replace('\r', '').split('\n')
         if len(data) == 1:
             # There was no split, so assume infinite
             self._linebreak = float('inf')
@@ -170,7 +170,7 @@ class TelnetConnection:
             if len(data) > 2:
                 # We can do a quick sanity check, as there are more linebreaks
                 if len(data[1]) != self._linebreak:
-                    _LOGGER.warn(
+                    _LOGGER.warning(
                         f"Inconsistent linebreaks {len(data[1])} != "
                         f"{self._linebreak}")
 
