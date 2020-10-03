@@ -418,17 +418,17 @@ class AsusWrt:
                 .split(' ')[0:3]))
         return loadavg
 
-    async def async_get_meminfo(self):
-        """Get Memory information."""
-        memory_info = await self.connection.async_run_command(_MEMINFO_CMD)
-        memory_info = filter(lambda s: s != '', memory_info)
-        ret = {}
-        for item in list(map(lambda i: i.split(':'), memory_info)):
-            name = re.sub(r'(?<!^)(?=[A-Z])', '_', item[0]).lower()
-            ret[name] = list(filter(lambda i: i != '', item[1].split(' ')))
-            ret[name][0] = int(ret[name][0])
-
-        return ret
+#    async def async_get_meminfo(self):
+#        """Get Memory information."""
+#        memory_info = await self.connection.async_run_command(_MEMINFO_CMD)
+#        memory_info = filter(lambda s: s != '', memory_info)
+#        ret = {}
+#        for item in list(map(lambda i: i.split(' '), memory_info)):
+#            name = re.sub(r'(?<!^)(?=[A-Z])', '_', item[0]).lower()
+#            ret[name] = list(filter(lambda i: i != '', item[1].split(' ')))
+#            ret[name][0] = int(ret[name][0])
+#
+#        return ret
 
     async def async_add_dns_record(self, hostname, ipaddress):
         """Add record to /etc/hosts and HUP dnsmask to catch this record."""

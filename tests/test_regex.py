@@ -1,13 +1,28 @@
 import asyncio
 import pytest
 from aioasuswrt.asuswrt import (AsusWrt, _LEASES_CMD, _WL_CMD, _IP_NEIGH_CMD,
-                                _ARP_CMD, Device, _RX_COMMAND, _TX_COMMAND)
+                                _ARP_CMD, Device, _RX_COMMAND, _TX_COMMAND,
+                                _TEMP_CMD, _LOADAVG_CMD, _MEMINFO_CMD)
 
 RX_DATA = ["2703926881", ""]
 TX_DATA = ["648110137", ""]
 
 RX = 2703926881
 TX = 648110137
+
+TEMP_DATA = [
+    '59 (0x3b)\r',
+    '69 (0x45)\r',
+    'CPU temperature	: 77'
+]
+
+LOADAVG_DATA = [
+    '0.23 0.50 0.68 2/167 13095'
+]
+
+MEMINFO_DATA = [
+    '0.46 0.75 0.77 1/165 2609'
+]
 
 WL_DATA = [
     'assoclist 01:02:03:04:06:08\r',
@@ -132,6 +147,15 @@ def RunCommandMock(command, *args, **kwargs):
     if command == _TX_COMMAND.format('eth0'):
         f.set_result(TX_DATA)
         return f
+    if command == _TEMP_CMD:
+        f.set_result(TEMP_DATA)
+        return f
+    if command == _LOADAVG_CMD:
+        f.set_result(LOADAVG_DATA)
+        return f
+    if command == _MEMINFO_CMD:
+        f.set_result(MEMINFO_DATA)
+        return f
     raise Exception("Unhandled command: %s" % command)
 
 
@@ -229,3 +253,36 @@ async def test_get_packets_total(event_loop, mocker):
     assert TX == data
     data = await scanner.async_get_rx()
     assert RX == data
+
+
+@pytest.mark.asyncio
+async def test_async_get_temperature(event_loop, mocker):
+    """Test getting temperature."""
+    mocker.patch(
+        'aioasuswrt.connection.SshConnection.async_run_command',
+        side_effect=RunCommandMock)
+    scanner = AsusWrt(host="localhost", port=22, mode='ap', require_ip=False)
+    data = await scanner.async_get_temperature()
+    assert data == {'2.4GHz': 49.5, '5.0GHz': 54.5, 'CPU': 77.0}
+
+
+@pytest.mark.asyncio
+async def test_async_get_loadavg(event_loop, mocker):
+    """Test getting loadavg."""
+    mocker.patch(
+        'aioasuswrt.connection.SshConnection.async_run_command',
+        side_effect=RunCommandMock)
+    scanner = AsusWrt(host="localhost", port=22, mode='ap', require_ip=False)
+    data = await scanner.async_get_loadavg()
+    assert data == [0.23, 0.5, 0.68]
+
+
+# @pytest.mark.asyncio
+# async def test_async_get_meminfo(event_loop, mocker):
+#     """Test getting meminfo."""
+#     mocker.patch(
+#         'aioasuswrt.connection.SshConnection.async_run_command',
+#         side_effect=RunCommandMock)
+#     scanner = AsusWrt(host="localhost", port=22, mode='ap', require_ip=False)
+#     data = await scanner.async_get_meminfo()
+#     assert data == []
