@@ -99,7 +99,7 @@ class TelnetConnection:
         """
         await self.async_connect()
         try:
-            with (await self._io_lock):
+            async with self._io_lock:
                 full_cmd = f"{_PATH_EXPORT_COMMAND} && {command}"
                 self._writer.write((full_cmd + "\n").encode('ascii'))
                 data = (await asyncio.wait_for(self._reader.readuntil(
@@ -128,7 +128,7 @@ class TelnetConnection:
         self._reader, self._writer = await asyncio.open_connection(
             self._host, self._port)
 
-        with (await self._io_lock):
+        async with self._io_lock:
             try:
                 await asyncio.wait_for(self._reader.readuntil(b'login: '), 9)
             except asyncio.IncompleteReadError:
