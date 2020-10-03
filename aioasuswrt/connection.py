@@ -2,6 +2,7 @@
 import asyncio
 import logging
 from asyncio import LimitOverrunError, TimeoutError
+from math import floor
 
 import asyncssh
 
@@ -25,7 +26,6 @@ class SshConnection:
 
     async def async_run_command(self, command, retry=False):
         """Run commands through an SSH connection.
-
         Connect to the SSH server if not currently connected, otherwise
         use the existing connection.
         """
@@ -90,6 +90,7 @@ class TelnetConnection:
         self._prompt_string = None
         self._connected = False
         self._io_lock = asyncio.Lock()
+        self._linebreak = None
 
     async def async_run_command(self, command, first_try=True):
         """Run a command through a Telnet connection.
@@ -99,12 +100,15 @@ class TelnetConnection:
         await self.async_connect()
         try:
             with (await self._io_lock):
-                self._writer.write('{}\n'.format(
-                    "%s && %s" % (
-                        _PATH_EXPORT_COMMAND, command)).encode('ascii'))
-                data = ((await asyncio.wait_for(self._reader.readuntil(
-                    self._prompt_string), 9)).split(b'\n')[1:-1])
-
+                full_cmd = f"{_PATH_EXPORT_COMMAND} && {command}"
+                self._writer.write((full_cmd + "\n").encode('ascii'))
+                data = (await asyncio.wait_for(self._reader.readuntil(
+                    self._prompt_string), 9)).split(b'\n')
+                # Let's find the number of elements the cmd takes
+                cmd_len = len(self._prompt_string) + len(full_cmd)
+                # We have to do floor + 1 to handle the infinite case correct
+                start_split = floor(cmd_len / self._linebreak) + 1
+                data = data[start_split:-1]
         except (BrokenPipeError, LimitOverrunError):
             if first_try:
                 return await self.async_run_command(command, False)
@@ -141,7 +145,34 @@ class TelnetConnection:
 
             self._prompt_string = (await self._reader.readuntil(
                 b'#')).split(b'\n')[-1]
+
+            # Let's determine if any linebreaks are added
+            # Write some arbitrary long string.
+            if self._linebreak is None:
+                self._writer.write((" " * 200 + "\n").encode('ascii'))
+                self._determine_linebreak(await self._reader.readuntil(
+                    self._prompt_string))
+
         self._connected = True
+
+    def _determine_linebreak(self, input_bytes : bytes):
+        """ Telnet or asyncio seems to be adding linebreaks due to terminal
+        size, try to determine here what the column number is."""
+        # Let's convert the data to the expected format
+        data = input_bytes.decode('utf-8').replace('\r', '').split('\n')
+        if len(data) == 1:
+            # There was no split, so assume infinite
+            self._linebreak = float('inf')
+        else:
+            # The linebreak is the length of the prompt string + the first line
+            self._linebreak = len(self._prompt_string) + len(data[0])
+
+            if len(data) > 2:
+                # We can do a quick sanity check, as there are more linebreaks
+                if len(data[1]) != self._linebreak:
+                    _LOGGER.warning(
+                        f"Inconsistent linebreaks {len(data[1])} != "
+                        f"{self._linebreak}")
 
     @property
     def is_connected(self):

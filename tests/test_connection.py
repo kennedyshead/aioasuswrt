@@ -1,3 +1,8 @@
+import pytest
+from aioasuswrt.connection import TelnetConnection
+from aioasuswrt.mocks import telnet_mock
+from unittest import TestCase, mock
+
 #    @mock.patch(
 #        'homeassistant.components.device_tracker.asuswrt.AsusWrtDeviceScanner',
 #        return_value=mock.MagicMock())
@@ -220,21 +225,66 @@
 #        self.connection.run_command('test')
 #        self.assertFalse(self.connection._connected)
 #        self.assertIsNone(self.connection._ssh)
-#
-#
-# @pytest.mark.skip(
-#    reason="These tests are performing actual failing network calls. They "
-#    "need to be cleaned up before they are re-enabled. They're frequently "
-#    "failing in Travis.")
-# class TestTelnetConnection(TestCase):
-#    """Testing TelnetConnection."""
-#
-#    def setUp(self):
-#        """Set up test env."""
-#        self.connection = TelnetConnection(
-#            'fake', 'fake', 'fake', 'fake')
-#        self.connection._connected = True
-#
+
+
+class TestTelnetConnection(TestCase):
+    """Testing TelnetConnection."""
+
+    def setUp(self):
+        """Set up test env."""
+        self.connection = TelnetConnection(
+                'fake', 'fake', 'fake', 'fake')
+        # self.connection._connected = True
+        self.connection._prompt_string = ""
+
+    def test_determine_linelength_inf(self):
+        """ Test input for infinite breakline length."""
+        # An input without newlines results in infinite linebreak
+        # The input string is shorter than the limit
+        for i in (15, 50):
+            input_bytes = (" " * i).encode('ascii')
+            self.connection._determine_linebreak(input_bytes)
+            self.assertEqual(self.connection._linebreak, float('inf'))
+
+    def test_determine_linelength(self):
+        for i in (15, 50):
+            input_bytes = (" " * i + "\n" + " " * 5).encode('ascii')
+            self.connection._determine_linebreak(input_bytes)
+            self.assertEqual(self.connection._linebreak, i)
+
+            # And now with some more lines
+            input_bytes = ((" " * i + "\n") * 3 + " " * 5).encode('ascii')
+            self.connection._determine_linebreak(input_bytes)
+            self.assertEqual(self.connection._linebreak, i)
+
+            # And with a prompt string
+            prompt = "test_string"
+            input_bytes = "a" * (i - len(prompt)) + "\n" + "a" * 5
+            self.connection._prompt_string = prompt
+            self.connection._determine_linebreak(input_bytes.encode('ascii'))
+            self.assertEqual(self.connection._linebreak, i)
+            self.connection._prompt_string = ""
+
+@pytest.mark.asyncio
+async def test_sending_cmds():
+    with mock.patch('asyncio.open_connection',
+                    new=telnet_mock.open_connection):
+        # Let's set a short linebreak of 10
+        telnet_mock.set_linebreak(22)
+
+        connection = TelnetConnection('fake', 'fake', 'fake', 'fake')
+        await connection.async_connect()
+
+        # Now let's send some arbitrary short command
+        exp_ret_val = "Some arbitrary long return string." + "." * 100
+        telnet_mock.set_return(exp_ret_val)
+        new_return = await connection.async_run_command("run command\n")
+        assert new_return[0] == exp_ret_val
+
+#    @pytest.mark.skip(
+#        reason="These tests are performing actual failing network calls. They "
+#        "need to be cleaned up before they are re-enabled. They're frequently "
+#        "failing in Travis.")
 #    def test_run_command_exception_eof(self):
 #        """Testing EOFException in run_command."""
 #        self.connection._telnet = mock.Mock()
@@ -243,6 +293,10 @@
 #        self.connection.run_command('test')
 #        self.assertFalse(self.connection._connected)
 #
+#    @pytest.mark.skip(
+#        reason="These tests are performing actual failing network calls. They "
+#        "need to be cleaned up before they are re-enabled. They're frequently "
+#        "failing in Travis.")
 #    def test_run_command_exception_connection_refused(self):
 #        """Testing ConnectionRefusedError in run_command."""
 #        self.connection._telnet = mock.Mock()
@@ -252,6 +306,10 @@
 #        self.connection.run_command('test')
 #        self.assertFalse(self.connection._connected)
 #
+#    @pytest.mark.skip(
+#        reason="These tests are performing actual failing network calls. They "
+#        "need to be cleaned up before they are re-enabled. They're frequently "
+#        "failing in Travis.")
 #    def test_run_command_exception_gaierror(self):
 #        """Testing socket.gaierror in run_command."""
 #        self.connection._telnet = mock.Mock()
@@ -260,6 +318,10 @@
 #        self.connection.run_command('test')
 #        self.assertFalse(self.connection._connected)
 #
+#    @pytest.mark.skip(
+#        reason="These tests are performing actual failing network calls. They "
+#        "need to be cleaned up before they are re-enabled. They're frequently "
+#        "failing in Travis.")
 #    def test_run_command_exception_oserror(self):
 #        """Testing OSError in run_command."""
 #        self.connection._telnet = mock.Mock()
