@@ -30,6 +30,8 @@ _WL_REGEX = re.compile(
     r'\w+\s'
     r'(?P<mac>(([0-9A-F]{2}[:-]){5}([0-9A-F]{2})))')
 
+_NVRAM_CMD = 'nvram show'
+
 _IP_NEIGH_CMD = 'ip neigh'
 _IP_NEIGH_REGEX = re.compile(
     r'(?P<ip>([0-9]{1,3}[\.]){3}[0-9]{1,3}|'
@@ -244,7 +246,7 @@ class AsusWrt:
         """Gets nvram"""
         data = {}
         if to_get in GET_LIST:
-            lines = await self.connection.async_run_command('nvram show')
+            lines = await self.connection.async_run_command(_NVRAM_CMD)
             for item in GET_LIST[to_get]:
                 regex = rf"{item}=([\w.\-/: ]+)"
                 for line in lines:
