@@ -9,7 +9,7 @@ import asyncssh
 _LOGGER = logging.getLogger(__name__)
 
 _PATH_EXPORT_COMMAND = "PATH=$PATH:/bin:/usr/sbin:/sbin"
-asyncssh.set_log_level('WARNING')
+asyncssh.set_log_level("WARNING")
 
 
 class SshConnection:
@@ -35,13 +35,14 @@ class SshConnection:
         else:
             if self._client is not None:
                 try:
-                    result = await asyncio.wait_for(self._client.run(
-                        "%s && %s" % (_PATH_EXPORT_COMMAND, command)), 9)
+                    result = await asyncio.wait_for(
+                        self._client.run("%s && %s" % (_PATH_EXPORT_COMMAND, command)),
+                        9,
+                    )
                 except asyncssh.misc.ChannelOpenError:
                     if not retry:
                         await self.async_connect()
-                        return await self.async_run_command(
-                            command, retry=True)
+                        return await self.async_run_command(command, retry=True)
                     else:
                         _LOGGER.error("Cant connect to host, giving up!")
                         return []
@@ -50,7 +51,7 @@ class SshConnection:
                     _LOGGER.error("Host timeout.")
                     return []
 
-                return result.stdout.split('\n')
+                return result.stdout.split("\n")
 
             else:
                 _LOGGER.error("Cant connect to host, giving up!")
@@ -65,11 +66,11 @@ class SshConnection:
         """Fetches the client or creates a new one."""
 
         kwargs = {
-            'username': self._username if self._username else None,
-            'client_keys': [self._ssh_key] if self._ssh_key else None,
-            'port': self._port,
-            'password': self._password if self._password else None,
-            'known_hosts': None,
+            "username": self._username if self._username else None,
+            "client_keys": [self._ssh_key] if self._ssh_key else None,
+            "port": self._port,
+            "password": self._password if self._password else None,
+            "known_hosts": None,
         }
 
         self._client = await asyncssh.connect(self._host, **kwargs)
@@ -101,9 +102,12 @@ class TelnetConnection:
         try:
             async with self._io_lock:
                 full_cmd = f"{_PATH_EXPORT_COMMAND} && {command}"
-                self._writer.write((full_cmd + "\n").encode('ascii'))
-                data = (await asyncio.wait_for(self._reader.readuntil(
-                    self._prompt_string), 9)).split(b'\n')
+                self._writer.write((full_cmd + "\n").encode("ascii"))
+                data = (
+                    await asyncio.wait_for(
+                        self._reader.readuntil(self._prompt_string), 9
+                    )
+                ).split(b"\n")
                 # Let's find the number of elements the cmd takes
                 cmd_len = len(self._prompt_string) + len(full_cmd)
                 # We have to do floor + 1 to handle the infinite case correct
@@ -114,55 +118,56 @@ class TelnetConnection:
                 return await self.async_run_command(command, False)
             else:
                 _LOGGER.warning("connection is lost to host.")
-                return[]
+                return []
         except TimeoutError:
             _LOGGER.error("Host timeout.")
             return []
         finally:
             self._writer.close()
 
-        return [line.decode('utf-8') for line in data]
+        return [line.decode("utf-8") for line in data]
 
     async def async_connect(self):
         """Connect to the ASUS-WRT Telnet server."""
         self._reader, self._writer = await asyncio.open_connection(
-            self._host, self._port)
+            self._host, self._port
+        )
 
         async with self._io_lock:
             try:
-                await asyncio.wait_for(self._reader.readuntil(b'login: '), 9)
+                await asyncio.wait_for(self._reader.readuntil(b"login: "), 9)
             except asyncio.IncompleteReadError:
                 _LOGGER.error(
-                    "Unable to read from router on %s:%s" % (
-                        self._host, self._port))
+                    "Unable to read from router on %s:%s" % (self._host, self._port)
+                )
                 return
             except TimeoutError:
                 _LOGGER.error("Host timeout.")
-            self._writer.write((self._username + '\n').encode('ascii'))
-            await self._reader.readuntil(b'Password: ')
+            self._writer.write((self._username + "\n").encode("ascii"))
+            await self._reader.readuntil(b"Password: ")
 
-            self._writer.write((self._password + '\n').encode('ascii'))
+            self._writer.write((self._password + "\n").encode("ascii"))
 
-            self._prompt_string = (await self._reader.readuntil(
-                b'#')).split(b'\n')[-1]
+            self._prompt_string = (await self._reader.readuntil(b"#")).split(b"\n")[-1]
 
             # Let's determine if any linebreaks are added
             # Write some arbitrary long string.
             if self._linebreak is None:
-                self._writer.write((" " * 200 + "\n").encode('ascii'))
-                self._determine_linebreak(await self._reader.readuntil(
-                    self._prompt_string))
+                self._writer.write((" " * 200 + "\n").encode("ascii"))
+                self._determine_linebreak(
+                    await self._reader.readuntil(self._prompt_string)
+                )
 
         self._connected = True
 
-    def _determine_linebreak(self, input_bytes : bytes):
-        """ Telnet or asyncio seems to be adding linebreaks due to terminal
+    def _determine_linebreak(self, input_bytes: bytes):
+        """Telnet or asyncio seems to be adding linebreaks due to terminal
         size, try to determine here what the column number is."""
         # Let's convert the data to the expected format
-        data = input_bytes.decode('utf-8').replace('\r', '').split('\n')
+        data = input_bytes.decode("utf-8").replace("\r", "").split("\n")
         if len(data) == 1:
             # There was no split, so assume infinite
-            self._linebreak = float('inf')
+            self._linebreak = float("inf")
         else:
             # The linebreak is the length of the prompt string + the first line
             self._linebreak = len(self._prompt_string) + len(data[0])
@@ -172,7 +177,8 @@ class TelnetConnection:
                 if len(data[1]) != self._linebreak:
                     _LOGGER.warning(
                         f"Inconsistent linebreaks {len(data[1])} != "
-                        f"{self._linebreak}")
+                        f"{self._linebreak}"
+                    )
 
     @property
     def is_connected(self):
