@@ -19,7 +19,7 @@ with open("README.md", "r") as fh:
     long_description = fh.read()
 
 install_requires = [
-    'asyncssh==2.3.0'
+    'asyncssh'
 ]
 
 tests_require = [
