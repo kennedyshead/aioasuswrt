@@ -142,5 +142,8 @@ crashlytics.properties
 crashlytics-build.properties
 fabric.properties
 
+# vs code configs
+.vscode
+
 test.py
 upload.sh
