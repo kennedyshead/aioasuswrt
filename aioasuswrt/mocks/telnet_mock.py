@@ -2,13 +2,15 @@
 Mock library for the Telnet connection, especially mocking the reader/writer of asyncio
 """
 import textwrap
-
+import typing
 
 _READER = None
 _WRITER = None
 _RETURN_VAL = "".encode("ascii")
 _PROMPT = "".encode("ascii")
 _LINEBREAK = float("inf")
+
+_NEXT_EXCEPTION = None
 
 
 class MockWriter:
@@ -18,8 +20,14 @@ class MockWriter:
         pass
 
     def write(self, write_bytes: bytes):
-        global _READER
-        _READER.set_cmd(write_bytes)
+        global _READER, _NEXT_EXCEPTION
+        if _NEXT_EXCEPTION is not None:
+            exception = _NEXT_EXCEPTION
+            _NEXT_EXCEPTION = None
+            raise exception
+
+        if _READER is not None:
+            _READER.set_cmd(write_bytes)
 
     def close(self):
         pass
@@ -67,9 +75,16 @@ def set_linebreak(linebreak):
     _LINEBREAK = linebreak
 
 
-async def open_connection(*args, **kwargs) -> (MockReader, MockWriter):
-    global _READER
-    global _WRITER
+def raise_exception_on_write(exception_type):
+    global _NEXT_EXCEPTION
+    _NEXT_EXCEPTION = exception_type
+
+
+async def open_connection(*args, **kwargs) -> typing.Tuple[MockReader, MockWriter]:
+    global _READER, _WRITER
     _READER = MockReader()
     _WRITER = MockWriter()
+    # Clear previously configured variables.
+    set_return("")
+    raise_exception_on_write(None)
     return (_READER, _WRITER)
