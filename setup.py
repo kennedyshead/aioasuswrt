@@ -19,6 +19,7 @@ with open("README.md", "r") as fh:
     long_description = fh.read()
 
 install_requires = [
+    'cryptography==3.3.2',
     'asyncssh'
 ]
 
