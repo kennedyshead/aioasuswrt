@@ -96,8 +96,8 @@ class TelnetConnection:
         """Run a command through a Telnet connection. If first_try is True a second
         attempt will be done if the first try fails."""
 
-        try:
-            async with self._io_lock:
+        async with self._io_lock:
+            try:
                 if not self.is_connected:
                     await self._async_connect()
                 # Let's add the path and send the command
@@ -107,23 +107,22 @@ class TelnetConnection:
                 data = await asyncio.wait_for(
                     self._reader.readuntil(self._prompt_string), 9
                 )
-        except (BrokenPipeError, LimitOverrunError, IncompleteReadError):
-            # Writing has failed, Let's close and retry if necessary
-            self.disconnect()
-            if first_try:
-                return await self.async_run_command(command, False)
-            else:
-                _LOGGER.warning("connection is lost to host.")
-                return []
-        except TimeoutError:
-            _LOGGER.error("Host timeout.")
-            async with self._io_lock:
+            except (BrokenPipeError, LimitOverrunError, IncompleteReadError):
+                # Writing has failed, Let's close and retry if necessary
                 self.disconnect()
-            if first_try:
-                _LOGGER.info("Trying one more time")
-                return await self.async_run_command(command, False)
-            else:
-                return []
+                if first_try:
+                    return await self.async_run_command(command, False)
+                else:
+                    _LOGGER.warning("connection is lost to host.")
+                    return []
+            except TimeoutError:
+                _LOGGER.error("Host timeout.")
+                self.disconnect()
+                if first_try:
+                    _LOGGER.debug("Trying one more time")
+                    return await self.async_run_command(command, False)
+                else:
+                    return []
 
         # Let's process the received data
         data = data.split(b"\n")
@@ -155,6 +154,7 @@ class TelnetConnection:
             return
         except TimeoutError:
             _LOGGER.error("Host timeout.")
+            self.disconnect()
         self._writer.write((self._username + "\n").encode("ascii"))
 
         # Enter the password
