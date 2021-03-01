@@ -96,6 +96,8 @@ class TelnetConnection:
         """Run a command through a Telnet connection. If first_try is True a second
         attempt will be done if the first try fails."""
 
+        need_retry = False
+
         async with self._io_lock:
             try:
                 if not self.is_connected:
@@ -111,7 +113,7 @@ class TelnetConnection:
                 # Writing has failed, Let's close and retry if necessary
                 self.disconnect()
                 if first_try:
-                    return await self.async_run_command(command, False)
+                    need_retry = True
                 else:
                     _LOGGER.warning("connection is lost to host.")
                     return []
@@ -119,10 +121,13 @@ class TelnetConnection:
                 _LOGGER.error("Host timeout.")
                 self.disconnect()
                 if first_try:
-                    _LOGGER.debug("Trying one more time")
-                    return await self.async_run_command(command, False)
+                    need_retry = True
                 else:
                     return []
+
+        if need_retry:
+            _LOGGER.debug("Trying one more time")
+            return await self.async_run_command(command, False)
 
         # Let's process the received data
         data = data.split(b"\n")
