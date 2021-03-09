@@ -6,7 +6,7 @@ import re
 from collections import namedtuple
 from datetime import datetime
 
-from aioasuswrt.connection import SshConnection, TelnetConnection
+from aioasuswrt.connection import create_connection
 from aioasuswrt.helpers import convert_size
 
 _LOGGER = logging.getLogger(__name__)
@@ -250,10 +250,9 @@ class AsusWrt:
         self.interface = interface
         self.dnsmasq = dnsmasq
 
-        if use_telnet:
-            self.connection = TelnetConnection(host, port, username, password)
-        else:
-            self.connection = SshConnection(host, port, username, password, ssh_key)
+        self.connection = create_connection(
+            use_telnet, host, port, username, password, ssh_key
+        )
 
     async def async_get_nvram(self, to_get):
         """Gets nvram"""
