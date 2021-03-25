@@ -17,15 +17,6 @@ with open("README.md", "r") as fh:
 
 install_requires = ["cryptography==3.3.2", "asyncssh"]
 
-tests_requires = [
-    "pytest",
-    "pytest-cov",
-    "pytest-mock",
-    "pytest-asyncio",
-]
-
-setup_requires = ["pytest-runner"]
-
 extras_requires = {
     "dev": ["check-manifest"],
 }
@@ -53,8 +44,6 @@ setup(
     keywords="Asuswrt wrapper",
     packages=find_packages(exclude=["contrib", "docs", "tests"]),
     install_requires=install_requires,
-    setup_requires=setup_requires,
-    tests_require=tests_requires,
     extras_require=extras_requires,
     test_suite="tests",
 )
