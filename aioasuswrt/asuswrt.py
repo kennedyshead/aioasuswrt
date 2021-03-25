@@ -195,6 +195,7 @@ GET_LIST = {
         "webs_state_upgrade",
         "webs_state_url",
     ],
+    "LABEL_MAC": ["label_mac"],
 }
 
 Device = namedtuple("Device", ["mac", "ip", "name"])
@@ -247,6 +248,8 @@ class AsusWrt:
         self._devices_cache = None
         self._transfer_rates_cache = None
         self._latest_transfer_data = 0, 0
+        self._nvram_cache_timer = None
+        self._nvram_cache = None
         self.interface = interface
         self.dnsmasq = dnsmasq
 
@@ -255,18 +258,31 @@ class AsusWrt:
         else:
             self.connection = SshConnection(host, port, username, password, ssh_key)
 
-    async def async_get_nvram(self, to_get):
+    async def async_get_nvram(self, to_get, use_cache=True):
         """Gets nvram"""
         data = {}
-        if to_get in GET_LIST:
+        if not (to_get in GET_LIST):
+            return data
+
+        now = datetime.utcnow()
+        if (
+            use_cache
+            and self._nvram_cache_timer
+            and self._cache_time > (now - self._nvram_cache_timer).total_seconds()
+        ):
+            lines = self._nvram_cache
+        else:
             lines = await self.connection.async_run_command(_NVRAM_CMD)
-            for item in GET_LIST[to_get]:
-                regex = rf"{item}=([\w.\-/: ]+)"
-                for line in lines:
-                    result = re.findall(regex, line)
-                    if result:
-                        data[item] = result[0]
-                        break
+            self._nvram_cache = lines
+            self._nvram_cache_timer = now
+
+        for item in GET_LIST[to_get]:
+            regex = rf"^{item}=([\w.\-/: ]+)"
+            for line in lines:
+                result = re.findall(regex, line)
+                if result:
+                    data[item] = result[0]
+                    break
         return data
 
     async def async_get_wl(self):
