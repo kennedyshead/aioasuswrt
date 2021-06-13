@@ -137,7 +137,7 @@ class TelnetConnection:
         # We have to do floor + 1 to handle the infinite case correct
         start_split = floor(cmd_len / self._linebreak) + 1
         data = data[start_split:-1]
-        return [line.decode("utf-8") for line in data]
+        return [line.decode("utf-8", "ignore") for line in data]
 
     async def async_connect(self):
         """Connect to the ASUS-WRT Telnet server."""
