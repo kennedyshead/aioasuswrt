@@ -14,6 +14,7 @@ from .test_data import (
     RX,
     RX_DATA,
     TEMP_DATA,
+    TEMP_DATA_2ND,
     TX,
     TX_DATA,
     WAKE_DEVICES_AP,
@@ -128,6 +129,9 @@ async def test_async_get_temperature(event_loop, mocker):
     data = await scanner.async_get_temperature()
     assert data == {"2.4GHz": 49.5, "5.0GHz": 54.5, "CPU": 77.0}
 
+    mock_run_cmd(mocker, ["", TEMP_DATA_2ND])
+    data = await scanner.async_get_temperature()
+    assert data == {"2.4GHz": 48, "5.0GHz": 53.5, "CPU": 81.3}
 
 @pytest.mark.asyncio
 async def test_async_get_loadavg(event_loop, mocker):
