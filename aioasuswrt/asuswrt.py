@@ -502,20 +502,20 @@ class AsusWrt:
 
     async def async_get_temperature(self):
         """Get temperature for 2.4GHz/5.0GHz/CPU."""
+        [r24, r50, cpu] = [0.0,0.0,0.0]
         for attempt in _TEMP_CMD:
             try:
                 [r24, r50, cpu] = map(
                     lambda l,loc: l.split(" ")[loc], await self.connection.async_run_command(attempt["command"]), attempt["loc"]
                 )
-                cpu = float(cpu) / attempt["cpu_div"]
+                [r24, r50, cpu] = [
+                    float(r24) / 2 + 20,
+                    float(r50) / 2 + 20,
+                    float(cpu) / attempt["cpu_div"]
+                ]
                 break
             except ValueError:
                 continue
-        [r24, r50, cpu] = [
-            float(r24) / 2 + 20,
-            float(r50) / 2 + 20,
-            cpu,
-        ]
         return {"2.4GHz": r24, "5.0GHz": r50, "CPU": cpu}
 
     @property
