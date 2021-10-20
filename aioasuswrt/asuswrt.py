@@ -89,11 +89,11 @@ _NETDEV_FIELDS = [
 _TEMP_CMD = [{"command": (
     "wl -i eth1 phy_tempsense ; wl -i eth2 phy_tempsense ;"
     " head -c20 /proc/dmu/temperature"
-), "loc": (0,0,2), "cpu_div": 1
+), "loc": (0, 0, 2), "cpu_div": 1
 }, {"command": (
     "wl -i eth5 phy_tempsense ; wl -i eth6 phy_tempsense ;"
     "head -c5 /sys/class/thermal/thermal_zone0/temp"
-), "loc": (0,0,0), "cpu_div": 1000
+), "loc": (0, 0, 0), "cpu_div": 1000
 }]
 
 GET_LIST = {
@@ -502,11 +502,11 @@ class AsusWrt:
 
     async def async_get_temperature(self):
         """Get temperature for 2.4GHz/5.0GHz/CPU."""
-        [r24, r50, cpu] = [0.0,0.0,0.0]
+        [r24, r50, cpu] = [0.0, 0.0, 0.0]
         for attempt in _TEMP_CMD:
             try:
                 [r24, r50, cpu] = map(
-                    lambda l,loc: l.split(" ")[loc], await self.connection.async_run_command(attempt["command"]), attempt["loc"]
+                    lambda l, loc: l.split(" ")[loc], await self.connection.async_run_command(attempt["command"]), attempt["loc"]
                 )
                 [r24, r50, cpu] = [
                     float(r24) / 2 + 20,

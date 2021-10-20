@@ -133,6 +133,7 @@ async def test_async_get_temperature(event_loop, mocker):
     data = await scanner.async_get_temperature()
     assert data == {"2.4GHz": 48, "5.0GHz": 53.5, "CPU": 81.3}
 
+
 @pytest.mark.asyncio
 async def test_async_get_loadavg(event_loop, mocker):
     """Test getting loadavg."""
