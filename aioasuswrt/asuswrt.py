@@ -86,10 +86,15 @@ _NETDEV_FIELDS = [
     "rx_compressed",
 ]
 
-_TEMP_CMD = (
+_TEMP_CMD = [{"command": (
     "wl -i eth1 phy_tempsense ; wl -i eth2 phy_tempsense ;"
     " head -c20 /proc/dmu/temperature"
-)
+), "loc": (0, 0, 2), "cpu_div": 1
+}, {"command": (
+    "wl -i eth5 phy_tempsense ; wl -i eth6 phy_tempsense ;"
+    "head -c5 /sys/class/thermal/thermal_zone0/temp"
+), "loc": (0, 0, 0), "cpu_div": 1000
+}]
 
 GET_LIST = {
     "DHCP": [
@@ -497,14 +502,20 @@ class AsusWrt:
 
     async def async_get_temperature(self):
         """Get temperature for 2.4GHz/5.0GHz/CPU."""
-        [r24, r50, cpu] = map(
-            lambda l: l.split(" "), await self.connection.async_run_command(_TEMP_CMD)
-        )
-        [r24, r50, cpu] = [
-            float(r24[0]) / 2 + 20,
-            float(r50[0]) / 2 + 20,
-            float(cpu[2]),
-        ]
+        [r24, r50, cpu] = [0.0, 0.0, 0.0]
+        for attempt in _TEMP_CMD:
+            try:
+                [r24, r50, cpu] = map(
+                    lambda l, loc: l.split(" ")[loc], await self.connection.async_run_command(attempt["command"]), attempt["loc"]
+                )
+                [r24, r50, cpu] = [
+                    float(r24) / 2 + 20,
+                    float(r50) / 2 + 20,
+                    float(cpu) / attempt["cpu_div"]
+                ]
+                break
+            except ValueError:
+                continue
         return {"2.4GHz": r24, "5.0GHz": r50, "CPU": cpu}
 
     @property
