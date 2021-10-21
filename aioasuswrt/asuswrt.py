@@ -86,15 +86,20 @@ _NETDEV_FIELDS = [
     "rx_compressed",
 ]
 
-_TEMP_CMD = [{"command": (
-    "wl -i eth1 phy_tempsense ; wl -i eth2 phy_tempsense ;"
-    " head -c20 /proc/dmu/temperature"
-), "loc": (0, 0, 2), "cpu_div": 1
-}, {"command": (
-    "wl -i eth5 phy_tempsense ; wl -i eth6 phy_tempsense ;"
-    "head -c5 /sys/class/thermal/thermal_zone0/temp"
-), "loc": (0, 0, 0), "cpu_div": 1000
-}]
+_TEMP_RADIO_EVAL = " / 2 + 20"
+_TEMP_24_CMDS = [
+    {"cmd": "wl -i eth1 phy_tempsense", "result_loc": 0, "eval": _TEMP_RADIO_EVAL},
+    {"cmd": "wl -i eth5 phy_tempsense", "result_loc": 0, "eval": _TEMP_RADIO_EVAL}
+]
+_TEMP_5_CMDS = [
+    {"cmd": "wl -i eth2 phy_tempsense", "result_loc": 0, "eval": _TEMP_RADIO_EVAL},
+    {"cmd": "wl -i eth6 phy_tempsense", "result_loc": 0, "eval": _TEMP_RADIO_EVAL}
+]
+_TEMP_CPU_CMDS = [
+    {"cmd": "head -c20 /proc/dmu/temperature", "result_loc": 2, "eval": ""},
+    {"cmd": "head -c5 /sys/class/thermal/thermal_zone0/temp", "result_loc": 0, "eval": " / 1000"}
+]
+_TEMP_CMDS = [_TEMP_24_CMDS, _TEMP_5_CMDS, _TEMP_CPU_CMDS]
 
 GET_LIST = {
     "DHCP": [
@@ -255,6 +260,7 @@ class AsusWrt:
         self._latest_transfer_data = 0, 0
         self._nvram_cache_timer = None
         self._nvram_cache = None
+        self._temps_commands = [None, None, None]
         self.interface = interface
         self.dnsmasq = dnsmasq
 
@@ -500,23 +506,31 @@ class AsusWrt:
         )
         return dict(interfaces)
 
+    async def async_find_temperature_commands(self):
+        """Find which temperature commands work with the router, if any."""
+        for i in range(3):
+            for cmd in _TEMP_CMDS[i]:
+                try:
+                    result = await self.connection.async_run_command(cmd["cmd"])
+                    if result[0].split(" ")[cmd["result_loc"]].isnumeric():
+                        self._temps_commands[i] = cmd
+                        break
+                except (ValueError, IndexError, OSError):
+                    continue
+        return [self._temps_commands[i] is not None for i in range(3)]
+
     async def async_get_temperature(self):
         """Get temperature for 2.4GHz/5.0GHz/CPU."""
-        [r24, r50, cpu] = [0.0, 0.0, 0.0]
-        for attempt in _TEMP_CMD:
-            try:
-                [r24, r50, cpu] = map(
-                    lambda l, loc: l.split(" ")[loc], await self.connection.async_run_command(attempt["command"]), attempt["loc"]
-                )
-                [r24, r50, cpu] = [
-                    float(r24) / 2 + 20,
-                    float(r50) / 2 + 20,
-                    float(cpu) / attempt["cpu_div"]
-                ]
-                break
-            except ValueError:
+        result = [0.0, 0.0, 0.0]
+        if self._temps_commands == [None, None, None]:
+            await self.async_find_temperature_commands()
+        for i in range(3):
+            if self._temps_commands[i] is None:
                 continue
-        return {"2.4GHz": r24, "5.0GHz": r50, "CPU": cpu}
+            cmd_result = await self.connection.async_run_command(self._temps_commands[i]["cmd"])
+            result[i] = cmd_result[0].split(" ")[self._temps_commands[i]["result_loc"]]
+            result[i] = eval("float(" + result[i] + ")" + self._temps_commands[i]["eval"])
+        return dict(zip(["2.4GHz", "5.0GHz", "CPU"], result))
 
     @property
     def is_connected(self):

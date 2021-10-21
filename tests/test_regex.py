@@ -124,14 +124,15 @@ async def test_get_packets_total(event_loop, mocker):
 @pytest.mark.asyncio
 async def test_async_get_temperature(event_loop, mocker):
     """Test getting temperature."""
-    mock_run_cmd(mocker, [TEMP_DATA])
+    mock_run_cmd(mocker, TEMP_DATA)
     scanner = AsusWrt(host="localhost", port=22, mode="ap", require_ip=False)
     data = await scanner.async_get_temperature()
     assert data == {"2.4GHz": 49.5, "5.0GHz": 54.5, "CPU": 77.0}
 
-    mock_run_cmd(mocker, ["", TEMP_DATA_2ND])
+    mock_run_cmd(mocker, TEMP_DATA_2ND)
+    scanner = AsusWrt(host="localhost", port=22, mode="ap", require_ip=False)
     data = await scanner.async_get_temperature()
-    assert data == {"2.4GHz": 48, "5.0GHz": 53.5, "CPU": 81.3}
+    assert data == {"2.4GHz": 0.0, "5.0GHz": 0.0, "CPU": 81.3}
 
 
 @pytest.mark.asyncio
