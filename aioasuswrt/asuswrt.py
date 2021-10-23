@@ -375,7 +375,7 @@ class AsusWrt:
         for if_mac in dev_list.values():
             for conn_type, conn_items in if_mac.items():
                 if conn_type == "wired_mac":
-                    list_wired = conn_items
+                    list_wired.update(conn_items)
                     continue
                 for dev_mac in conn_items:
                     mac = dev_mac.upper()
