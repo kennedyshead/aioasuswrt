@@ -8,6 +8,7 @@ RX = 2703926881
 TX = 648110137
 
 TEMP_DATA = ["59 (0x3b)\r", "69 (0x45)\r", "CPU temperature	: 77"]
+TEMP_DATA_2ND = ["56 (0x38)\r", "67 (0x43)\r", "81300"]
 
 NETDEV_DATA = [
     "nter-|   Receive                                                |  Transmit",

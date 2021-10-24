@@ -1,5 +1,6 @@
 """Module for Asuswrt."""
 import inspect
+import json
 import logging
 import math
 import re
@@ -30,6 +31,8 @@ _WL_CMD = (
     " else wl -i $dev assoclist; fi; done"
 )
 _WL_REGEX = re.compile(r"\w+\s" r"(?P<mac>(([0-9A-F]{2}[:-]){5}([0-9A-F]{2})))")
+
+_CLIENTLIST_CMD = 'cat /tmp/clientlist.json'
 
 _NVRAM_CMD = "nvram show"
 
@@ -86,10 +89,15 @@ _NETDEV_FIELDS = [
     "rx_compressed",
 ]
 
-_TEMP_CMD = (
+_TEMP_CMD = [{"command": (
     "wl -i eth1 phy_tempsense ; wl -i eth2 phy_tempsense ;"
     " head -c20 /proc/dmu/temperature"
-)
+), "loc": (0, 0, 2), "cpu_div": 1
+}, {"command": (
+    "wl -i eth5 phy_tempsense ; wl -i eth6 phy_tempsense ;"
+    "head -c5 /sys/class/thermal/thermal_zone0/temp"
+), "loc": (0, 0, 0), "cpu_div": 1000
+}]
 
 GET_LIST = {
     "DHCP": [
@@ -195,6 +203,7 @@ GET_LIST = {
         "webs_state_upgrade",
         "webs_state_url",
     ],
+    "LABEL_MAC": ["label_mac"],
 }
 
 Device = namedtuple("Device", ["mac", "ip", "name"])
@@ -247,6 +256,9 @@ class AsusWrt:
         self._devices_cache = None
         self._transfer_rates_cache = None
         self._latest_transfer_data = 0, 0
+        self._nvram_cache_timer = None
+        self._nvram_cache = None
+        self._list_wired = {}
         self.interface = interface
         self.dnsmasq = dnsmasq
 
@@ -254,18 +266,31 @@ class AsusWrt:
             use_telnet, host, port, username, password, ssh_key
         )
 
-    async def async_get_nvram(self, to_get):
+    async def async_get_nvram(self, to_get, use_cache=True):
         """Gets nvram"""
         data = {}
-        if to_get in GET_LIST:
+        if not (to_get in GET_LIST):
+            return data
+
+        now = datetime.utcnow()
+        if (
+            use_cache
+            and self._nvram_cache_timer
+            and self._cache_time > (now - self._nvram_cache_timer).total_seconds()
+        ):
+            lines = self._nvram_cache
+        else:
             lines = await self.connection.async_run_command(_NVRAM_CMD)
-            for item in GET_LIST[to_get]:
-                regex = rf"{item}=([\w.\-/: ]+)"
-                for line in lines:
-                    result = re.findall(regex, line)
-                    if result:
-                        data[item] = result[0]
-                        break
+            self._nvram_cache = lines
+            self._nvram_cache_timer = now
+
+        for item in GET_LIST[to_get]:
+            regex = rf"^{item}=([\w.\-/: ]+)"
+            for line in lines:
+                result = re.findall(regex, line)
+                if result:
+                    data[item] = result[0]
+                    break
         return data
 
     async def async_get_wl(self):
@@ -332,6 +357,52 @@ class AsusWrt:
                 devices[mac] = Device(mac, device["ip"], None)
         return devices
 
+    async def async_filter_dev_list(self, cur_devices):
+        """Filter devices list using 'clientlist.json' files if available"""
+        lines = await self.connection.async_run_command(_CLIENTLIST_CMD)
+        if not lines:
+            return cur_devices
+
+        try:
+            dev_list = json.loads(lines[0])
+        except (TypeError, ValueError):
+            return cur_devices
+
+        devices = {}
+        list_wired = {}
+        # parse client list
+        for if_mac in dev_list.values():
+            for conn_type, conn_items in if_mac.items():
+                if conn_type == "wired_mac":
+                    list_wired.update(conn_items)
+                    continue
+                for dev_mac in conn_items:
+                    mac = dev_mac.upper()
+                    if mac in cur_devices:
+                        devices[mac] = cur_devices[mac]
+
+        # Delay 180 seconds removal of previously detected wired devices.
+        # This is to avoid continuous add and remove in some circumstance
+        # with devices connected via additional hub.
+        cur_time = datetime.utcnow()
+        for dev_mac, dev_data in list_wired.items():
+            if dev_data.get("ip"):
+                mac = dev_mac.upper()
+                self._list_wired[mac] = cur_time
+
+        pop_list = []
+        for dev_mac, last_seen in self._list_wired.items():
+            if (cur_time - last_seen).total_seconds() <= 180:
+                if dev_mac in cur_devices:
+                    devices[dev_mac] = cur_devices[dev_mac]
+            else:
+                pop_list.append(dev_mac)
+
+        for mac in pop_list:
+            self._list_wired.pop(mac)
+
+        return devices
+
     async def async_get_connected_devices(self, use_cache=True):
         """Retrieve data from ASUSWRT.
 
@@ -357,10 +428,12 @@ class AsusWrt:
             dev = await self.async_get_leases(devices)
             devices.update(dev)
 
-        ret_devices = {}
-        for key in devices:
-            if not self.require_ip or devices[key].ip is not None:
-                ret_devices[key] = devices[key]
+        filter_devices = await self.async_filter_dev_list(devices)
+        ret_devices = {
+            key: dev
+            for key, dev in filter_devices.items()
+            if not self.require_ip or dev.ip is not None
+        }
 
         self._devices_cache = ret_devices
         self._dev_cache_timer = now
@@ -480,14 +553,20 @@ class AsusWrt:
 
     async def async_get_temperature(self):
         """Get temperature for 2.4GHz/5.0GHz/CPU."""
-        [r24, r50, cpu] = map(
-            lambda l: l.split(" "), await self.connection.async_run_command(_TEMP_CMD)
-        )
-        [r24, r50, cpu] = [
-            float(r24[0]) / 2 + 20,
-            float(r50[0]) / 2 + 20,
-            float(cpu[2]),
-        ]
+        [r24, r50, cpu] = [0.0, 0.0, 0.0]
+        for attempt in _TEMP_CMD:
+            try:
+                [r24, r50, cpu] = map(
+                    lambda l, loc: l.split(" ")[loc], await self.connection.async_run_command(attempt["command"]), attempt["loc"]
+                )
+                [r24, r50, cpu] = [
+                    float(r24) / 2 + 20,
+                    float(r50) / 2 + 20,
+                    float(cpu) / attempt["cpu_div"]
+                ]
+                break
+            except ValueError:
+                continue
         return {"2.4GHz": r24, "5.0GHz": r50, "CPU": cpu}
 
     @property

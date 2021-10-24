@@ -164,6 +164,7 @@ class SshConnection(_BaseConnection):
             "port": self._port,
             "password": self._password if self._password else None,
             "known_hosts": None,
+            'server_host_key_algs': ['ssh-rsa'],
         }
 
         self._client = await asyncssh.connect(self._host, **kwargs)
@@ -226,6 +227,11 @@ class TelnetConnection(_BaseConnection):
         # We have to do floor + 1 to handle the infinite case correct
         start_split = floor(cmd_len / self._linebreak) + 1
         return [line.decode("utf-8") for line in data_list[start_split:-1]]
+
+    async def async_connect(self):
+        """Connect to the ASUS-WRT Telnet server."""
+        async with self._io_lock:
+            await self._async_connect()
 
     async def _async_connect(self):
         self._reader, self._writer = await asyncio.open_connection(
