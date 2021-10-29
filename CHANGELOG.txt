@@ -1,0 +1,5 @@
+Version 1.4.0
+* Fix UnicodeDecodeError error on Telnet connection @ollo69
+* fix: Alternative Temperature commands @Chen-IL
+* Better temperature fetching @Chen-IL
+* Use /tmp/clientlist.json in async_get_connected_devices @ollo69
