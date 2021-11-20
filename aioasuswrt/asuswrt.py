@@ -32,7 +32,7 @@ _WL_CMD = (
 )
 _WL_REGEX = re.compile(r"\w+\s" r"(?P<mac>(([0-9A-F]{2}[:-]){5}([0-9A-F]{2})))")
 
-_CLIENTLIST_CMD = 'cat /tmp/clientlist.json'
+_CLIENTLIST_CMD = "cat /tmp/clientlist.json"
 
 _NVRAM_CMD = "nvram show"
 
@@ -89,15 +89,20 @@ _NETDEV_FIELDS = [
     "rx_compressed",
 ]
 
-_TEMP_CMD = [{"command": (
-    "wl -i eth1 phy_tempsense ; wl -i eth2 phy_tempsense ;"
-    " head -c20 /proc/dmu/temperature"
-), "loc": (0, 0, 2), "cpu_div": 1
-}, {"command": (
-    "wl -i eth5 phy_tempsense ; wl -i eth6 phy_tempsense ;"
-    "head -c5 /sys/class/thermal/thermal_zone0/temp"
-), "loc": (0, 0, 0), "cpu_div": 1000
-}]
+_TEMP_CMD = [
+    {
+        "command": ("wl -i eth1 phy_tempsense ; wl -i eth2 phy_tempsense ;" " head -c20 /proc/dmu/temperature"),
+        "loc": (0, 0, 2),
+        "cpu_div": 1,
+    },
+    {
+        "command": (
+            "wl -i eth5 phy_tempsense ; wl -i eth6 phy_tempsense ;" "head -c5 /sys/class/thermal/thermal_zone0/temp"
+        ),
+        "loc": (0, 0, 0),
+        "cpu_div": 1000,
+    },
+]
 
 GET_LIST = {
     "DHCP": [
@@ -262,9 +267,7 @@ class AsusWrt:
         self.interface = interface
         self.dnsmasq = dnsmasq
 
-        self.connection = create_connection(
-            use_telnet, host, port, username, password, ssh_key
-        )
+        self.connection = create_connection(use_telnet, host, port, username, password, ssh_key)
 
     async def async_get_nvram(self, to_get, use_cache=True):
         """Gets nvram"""
@@ -273,11 +276,7 @@ class AsusWrt:
             return data
 
         now = datetime.utcnow()
-        if (
-            use_cache
-            and self._nvram_cache_timer
-            and self._cache_time > (now - self._nvram_cache_timer).total_seconds()
-        ):
+        if use_cache and self._nvram_cache_timer and self._cache_time > (now - self._nvram_cache_timer).total_seconds():
             lines = self._nvram_cache
         else:
             lines = await self.connection.async_run_command(_NVRAM_CMD)
@@ -307,9 +306,7 @@ class AsusWrt:
 
     async def async_get_leases(self, cur_devices):
         """Gets leases"""
-        lines = await self.connection.async_run_command(
-            _LEASES_CMD.format(self.dnsmasq)
-        )
+        lines = await self.connection.async_run_command(_LEASES_CMD.format(self.dnsmasq))
         if not lines:
             return {}
         lines = [line for line in lines if not line.startswith("duid ")]
@@ -410,11 +407,7 @@ class AsusWrt:
         responses. Some commands will not work on some routers.
         """
         now = datetime.utcnow()
-        if (
-            use_cache
-            and self._dev_cache_timer
-            and self._cache_time > (now - self._dev_cache_timer).total_seconds()
-        ):
+        if use_cache and self._dev_cache_timer and self._cache_time > (now - self._dev_cache_timer).total_seconds():
             return self._devices_cache
 
         devices = {}
@@ -429,11 +422,7 @@ class AsusWrt:
             devices.update(dev)
 
         filter_devices = await self.async_filter_dev_list(devices)
-        ret_devices = {
-            key: dev
-            for key, dev in filter_devices.items()
-            if not self.require_ip or dev.ip is not None
-        }
+        ret_devices = {key: dev for key, dev in filter_devices.items() if not self.require_ip or dev.ip is not None}
 
         self._devices_cache = ret_devices
         self._dev_cache_timer = now
@@ -442,11 +431,7 @@ class AsusWrt:
     async def async_get_bytes_total(self, use_cache=True):
         """Retrieve total bytes (rx an tx) from ASUSWRT."""
         now = datetime.utcnow()
-        if (
-            use_cache
-            and self._trans_cache_timer
-            and self._cache_time > (now - self._trans_cache_timer).total_seconds()
-        ):
+        if use_cache and self._trans_cache_timer and self._cache_time > (now - self._trans_cache_timer).total_seconds():
             return self._transfer_rates_cache
 
         rx = await self.async_get_rx()
@@ -455,16 +440,12 @@ class AsusWrt:
 
     async def async_get_rx(self):
         """Get current RX total given in bytes."""
-        data = await self.connection.async_run_command(
-            _RX_COMMAND.format(self.interface)
-        )
+        data = await self.connection.async_run_command(_RX_COMMAND.format(self.interface))
         return float(data[0]) if data[0] != "" else None
 
     async def async_get_tx(self):
         """Get current RX total given in bytes."""
-        data = await self.connection.async_run_command(
-            _TX_COMMAND.format(self.interface)
-        )
+        data = await self.connection.async_run_command(_TX_COMMAND.format(self.interface))
         return float(data[0]) if data[0] != "" else None
 
     async def async_get_current_transfer_rates(self, use_cache=True):
@@ -511,9 +492,7 @@ class AsusWrt:
         loadavg = list(
             map(
                 lambda avg: float(avg),
-                (await self.connection.async_run_command(_LOADAVG_CMD))[0].split(" ")[
-                    0:3
-                ],
+                (await self.connection.async_run_command(_LOADAVG_CMD))[0].split(" ")[0:3],
             )
         )
         return loadavg
@@ -532,16 +511,12 @@ class AsusWrt:
 
     async def async_add_dns_record(self, hostname, ipaddress):
         """Add record to /etc/hosts and HUP dnsmask to catch this record."""
-        return await self.connection.async_run_command(
-            _ADDHOST_CMD.format(hostname=hostname, ipaddress=ipaddress)
-        )
+        return await self.connection.async_run_command(_ADDHOST_CMD.format(hostname=hostname, ipaddress=ipaddress))
 
     async def async_get_interfaces_counts(self):
         """Get counters for all network interfaces."""
         lines = await self.connection.async_run_command(_NETDEV_CMD)
-        lines = list(
-            map(lambda i: list(filter(lambda j: j != "", i.split(" "))), lines[2:-1])
-        )
+        lines = list(map(lambda i: list(filter(lambda j: j != "", i.split(" "))), lines[2:-1]))
         interfaces = map(
             lambda i: [
                 i[0][0:-1],
@@ -557,13 +532,11 @@ class AsusWrt:
         for attempt in _TEMP_CMD:
             try:
                 [r24, r50, cpu] = map(
-                    lambda l, loc: l.split(" ")[loc], await self.connection.async_run_command(attempt["command"]), attempt["loc"]
+                    lambda l, loc: l.split(" ")[loc],
+                    await self.connection.async_run_command(attempt["command"]),
+                    attempt["loc"],
                 )
-                [r24, r50, cpu] = [
-                    float(r24) / 2 + 20,
-                    float(r50) / 2 + 20,
-                    float(cpu) / attempt["cpu_div"]
-                ]
+                [r24, r50, cpu] = [float(r24) / 2 + 20, float(r50) / 2 + 20, float(cpu) / attempt["cpu_div"]]
                 break
             except ValueError:
                 continue
