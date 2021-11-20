@@ -1,16 +1,17 @@
 """
 Mock library for the Telnet connection, especially mocking the reader/writer of asyncio
 """
+import asyncio
 import textwrap
-import typing
+from typing import Optional, Tuple
 
-_READER = None
-_WRITER = None
+_READER: Optional["MockReader"] = None
+_WRITER: Optional["MockWriter"] = None
 _RETURN_VAL = "".encode("ascii")
 _PROMPT = "".encode("ascii")
 _LINEBREAK = float("inf")
 
-_NEXT_EXCEPTION = None
+_NEXT_EXCEPTION: Optional[Exception] = None
 
 
 class MockWriter:
@@ -45,13 +46,16 @@ class MockReader:
     def set_cmd(self, new_cmd: bytes):
         # The asyncio telnet connection adds '\r\rn' commands for every
         # strings bigger than the linebreak. So let's add that here.
-        self._cmd = "\r\r\n".join(
-            textwrap.wrap(
-                _PROMPT.decode("utf-8") + " " + new_cmd.decode("utf-8"),
-                width=_LINEBREAK,
-                drop_whitespace=False,
-            )
-        ).encode("ascii")
+        try:
+            self._cmd = "\r\r\n".join(
+                textwrap.wrap(
+                    _PROMPT.decode("utf-8") + " " + new_cmd.decode("utf-8"),
+                    width=int(_LINEBREAK),
+                    drop_whitespace=False,
+                )
+            ).encode("ascii")
+        except OverflowError:
+            self._comd = new_cmd
 
     async def readuntil(self, read_till: bytes) -> bytes:
         # Let's create the return string from the cmd and the return string
@@ -67,6 +71,7 @@ def set_prompt(new_prompt):
 
 def set_return(new_return: str):
     global _RETURN_VAL
+    print(f"set reutrn: {new_return}")
     _RETURN_VAL = new_return.encode("ascii")
 
 
@@ -80,8 +85,9 @@ def raise_exception_on_write(exception_type):
     _NEXT_EXCEPTION = exception_type
 
 
-async def open_connection(*args, **kwargs) -> typing.Tuple[MockReader, MockWriter]:
+async def open_connection(*args, **kwargs) -> Tuple[MockReader, MockWriter]:
     global _READER, _WRITER
+    print("MOCKED OPEN")
     _READER = MockReader()
     _WRITER = MockWriter()
     # Clear previously configured variables.
