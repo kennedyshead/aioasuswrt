@@ -2,7 +2,15 @@ Small wrapper for asuswrt. ![Python package](https://github.com/kennedyshead/aio
 
 ### How to run tests
 
-`python setup.py test`
+Install [tox](https://tox.wiki/en/latest/)
+```bash
+pip install tox
+```
+
+Run the tests:
+```bash
+tox
+```
 
 ## Credits:
 [@mvn23](https://github.com/mvn23)
