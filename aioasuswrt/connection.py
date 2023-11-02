@@ -24,39 +24,41 @@ class SshConnection:
         self._password = password
         self._ssh_key = ssh_key
         self._client = None
+        self._lock = asyncio.Lock()
 
     async def async_run_command(self, command, retry=False):
         """Run commands through an SSH connection.
         Connect to the SSH server if not currently connected, otherwise
         use the existing connection.
         """
-        if self._client is None and not retry:
-            await self.async_connect()
-            return await self.async_run_command(command, retry=True)
-        else:
-            if self._client is not None:
-                try:
-                    result = await asyncio.wait_for(
-                        self._client.run("%s && %s" % (_PATH_EXPORT_COMMAND, command)),
-                        9,
-                    )
-                except asyncssh.misc.ChannelOpenError:
-                    if not retry:
-                        await self.async_connect()
-                        return await self.async_run_command(command, retry=True)
-                    else:
-                        _LOGGER.error("Cant connect to host, giving up!")
-                        return []
-                except TimeoutError:
-                    self._client = None
-                    _LOGGER.error("Host timeout.")
-                    return []
-
-                return result.stdout.split("\n")
-
+        if not self.is_connected:
+            if not retry:
+                await self.async_connect()
+                return await self.async_run_command(command, retry=True)
             else:
                 _LOGGER.error("Cant connect to host, giving up!")
                 return []
+        else:
+            try:
+                async with self._lock:
+                  result = await asyncio.wait_for(
+                      self._client.run("%s && %s" % (_PATH_EXPORT_COMMAND, command)),
+                      9,
+                  )
+            except asyncssh.misc.ChannelOpenError:
+                if not retry:
+                    await self.async_connect()
+                    return await self.async_run_command(command, retry=True)
+                else:
+                    _LOGGER.error("Cant connect to host, giving up!")
+                    return []
+            except TimeoutError:
+                self._client = None
+                _LOGGER.error("Host timeout.")
+                return []
+            else:
+                return result.stdout.split("\n")
+                
 
     @property
     def is_connected(self):
@@ -65,7 +67,6 @@ class SshConnection:
 
     async def async_connect(self):
         """Fetches the client or creates a new one."""
-
         kwargs = {
             "username": self._username if self._username else None,
             "client_keys": [self._ssh_key] if self._ssh_key else None,
@@ -74,8 +75,15 @@ class SshConnection:
             "known_hosts": None,
             'server_host_key_algs': ['ssh-rsa'],
         }
-
-        self._client = await asyncssh.connect(self._host, **kwargs)
+        async with self._lock:
+          if self.is_connected:
+            _LOGGER.debug("reconnecting; old connection had local port %d", self._client._local_port)
+            self._client.close()
+            self._client = None
+          else:
+            _LOGGER.debug("reconnecting; no old connection existed")
+          self._client = await asyncssh.connect(self._host, **kwargs)
+          _LOGGER.debug("reconnected; new connection has local port %d", self._client._local_port)
 
 
 class TelnetConnection:
