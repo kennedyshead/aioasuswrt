@@ -31,11 +31,15 @@ class SshConnection:
         Connect to the SSH server if not currently connected, otherwise
         use the existing connection.
         """
-        if self._client is None and not retry:
-            await self.async_connect()
-            return await self.async_run_command(command, retry=True)
-        else:
-            if self._client is not None:
+        async with self._lock:
+            if self._client is None:
+                if not retry:
+                    await self.async_connect()
+                    return await self.async_run_command(command, retry=True)
+                else:
+                    _LOGGER.error("Cant connect to host, giving up!")
+                    return []
+            else:
                 try:
                     result = await asyncio.wait_for(
                         self._client.run("%s && %s" % (_PATH_EXPORT_COMMAND, command)),
@@ -52,12 +56,9 @@ class SshConnection:
                     self._client = None
                     _LOGGER.error("Host timeout.")
                     return []
-
-                return result.stdout.split("\n")
-
-            else:
-                _LOGGER.error("Cant connect to host, giving up!")
-                return []
+                else:
+                    return result.stdout.split("\n")
+                
 
     @property
     def is_connected(self):
