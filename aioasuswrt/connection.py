@@ -31,33 +31,33 @@ class SshConnection:
         Connect to the SSH server if not currently connected, otherwise
         use the existing connection.
         """
-        async with self._lock:
-            if self._client is None:
+        if not self.is_connected:
+            if not retry:
+                await self.async_connect()
+                return await self.async_run_command(command, retry=True)
+            else:
+                _LOGGER.error("Cant connect to host, giving up!")
+                return []
+        else:
+            try:
+                async with self._lock:
+                  result = await asyncio.wait_for(
+                      self._client.run("%s && %s" % (_PATH_EXPORT_COMMAND, command)),
+                      9,
+                  )
+            except asyncssh.misc.ChannelOpenError:
                 if not retry:
                     await self.async_connect()
                     return await self.async_run_command(command, retry=True)
                 else:
                     _LOGGER.error("Cant connect to host, giving up!")
                     return []
+            except TimeoutError:
+                self._client = None
+                _LOGGER.error("Host timeout.")
+                return []
             else:
-                try:
-                    result = await asyncio.wait_for(
-                        self._client.run("%s && %s" % (_PATH_EXPORT_COMMAND, command)),
-                        9,
-                    )
-                except asyncssh.misc.ChannelOpenError:
-                    if not retry:
-                        await self.async_connect()
-                        return await self.async_run_command(command, retry=True)
-                    else:
-                        _LOGGER.error("Cant connect to host, giving up!")
-                        return []
-                except TimeoutError:
-                    self._client = None
-                    _LOGGER.error("Host timeout.")
-                    return []
-                else:
-                    return result.stdout.split("\n")
+                return result.stdout.split("\n")
                 
 
     @property
