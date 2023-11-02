@@ -24,6 +24,7 @@ class SshConnection:
         self._password = password
         self._ssh_key = ssh_key
         self._client = None
+        self._lock = asyncio.Lock()
 
     async def async_run_command(self, command, retry=False):
         """Run commands through an SSH connection.
@@ -65,7 +66,6 @@ class SshConnection:
 
     async def async_connect(self):
         """Fetches the client or creates a new one."""
-
         kwargs = {
             "username": self._username if self._username else None,
             "client_keys": [self._ssh_key] if self._ssh_key else None,
@@ -74,8 +74,15 @@ class SshConnection:
             "known_hosts": None,
             'server_host_key_algs': ['ssh-rsa'],
         }
-
-        self._client = await asyncssh.connect(self._host, **kwargs)
+        async with self._lock:
+          if self.is_connected:
+            _LOGGER.debug("reconnecting; old connection had local port %d", self._client._local_port)
+            self._client.close()
+            self._client = None
+          else:
+            _LOGGER.debug("reconnecting; no old connection existed")
+          self._client = await asyncssh.connect(self._host, **kwargs)
+          _LOGGER.debug("reconnected; new connection has local port %d", self._client._local_port)
 
 
 class TelnetConnection:
