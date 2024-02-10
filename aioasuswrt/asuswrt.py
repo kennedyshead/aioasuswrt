@@ -111,8 +111,12 @@ _VPN_LIST_REGEX = re.compile(
     r"(?P<username>.*?)>"
     r"(?P<password>.*?)(?:<|$)"
 )
+_VPN_AMOUNT = 5
+
 _VPN_START_CMD = "service start_vpnclient{id}"
 _VPN_STOP_CMD = "service stop_vpnclient{id}"
+
+_GET_PID_OF = "pidof {name}"
 
 GET_LIST = {
     "DHCP": [
@@ -221,11 +225,8 @@ GET_LIST = {
     "LABEL_MAC": ["label_mac"],
     "VPN": [
         "vpnc_clientlist",
-        "vpn_client1_state",
-        "vpn_client2_state",
-        "vpn_client3_state",
-        "vpn_client4_state",
-        "vpn_client5_state",
+    ]+ [
+        f"vpn_client{ i + 1 }_state" for i in range(_VPN_AMOUNT)
     ],
 }
 
@@ -609,11 +610,16 @@ class AsusWrt:
 
         vpns = []
         for m in re.finditer(_VPN_LIST_REGEX, vpn_list):
-            vpn = {k: v for k, v in m.groupdict().items() if v}
-            vpn_state_key = f"vpn_client{m.group('id')}_state"
+            id = m.group("id")
+            pid = await self.connection.async_run_command(
+                _GET_PID_OF.format(name=f"vpnclient{id}")
+            )
 
+            vpn = {k: v for k, v in m.groupdict().items() if v}
+            vpn_state_key = f"vpn_client{id}_state"
             vpn_state = int(data.get(vpn_state_key, 0))
-            if vpn_state == 0:
+
+            if vpn_state == 0 or not pid:
                 vpn["state"] = "off"
             elif vpn_state == 1:
                 vpn["state"] = "starting"
@@ -627,21 +633,10 @@ class AsusWrt:
     async def async_start_vpn_client(self, id):
         """Starts a vpn client by id"""
         # stop all running vpn clients
-        await self.connection.async_run_command(
-            _VPN_START_CMD.format(id=1)
-        )
-        await self.connection.async_run_command(
-            _VPN_START_CMD.format(id=2)
-        )
-        await self.connection.async_run_command(
-            _VPN_START_CMD.format(id=3)
-        )
-        await self.connection.async_run_command(
-            _VPN_START_CMD.format(id=4)
-        )
-        await self.connection.async_run_command(
-            _VPN_START_CMD.format(id=5)
-        )
+        for i in range(_VPN_AMOUNT):
+            await self.connection.async_run_command(
+                _VPN_START_CMD.format(id=(i + 1))
+            )
 
         # actually start vpn
         return await self.connection.async_run_command(
