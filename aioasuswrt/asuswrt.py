@@ -413,14 +413,14 @@ class AsusWrt:
 
         devices = {}
         dev = await self.async_get_wl()
-        devices.update(dev)
+        merge_devices(devices, dev)
         dev = await self.async_get_arp()
-        devices.update(dev)
+        merge_devices(devices, dev)
         dev = await self.async_get_neigh(devices)
-        devices.update(dev)
+        merge_devices(devices, dev)
         if not self.mode == "ap":
             dev = await self.async_get_leases(devices)
-            devices.update(dev)
+            merge_devices(devices, dev)
 
         filter_devices = await self.async_filter_dev_list(devices)
         ret_devices = {key: dev for key, dev in filter_devices.items() if not self.require_ip or dev.ip is not None}
@@ -556,3 +556,31 @@ class AsusWrt:
     @property
     def is_connected(self):
         return self.connection.is_connected
+
+
+def merge_devices(devices, new_devices):
+    """Merge a new list of devices into an existing list
+
+    This merge fills in any null values in the base list if the device
+    in the new list has values for them."""
+    for mac, device in new_devices.items():
+        if mac not in devices:
+            devices[mac] = device
+        elif any(val is None for val in devices[mac]):
+            mismatches = [
+                f"{Device._fields[field]}({val1} != {val2})"
+                for field, (val1, val2) in enumerate(zip(devices[mac], device))
+                if val1 and val2 and val1 != val2
+            ]
+            if mismatches:
+                # if filled values do not match between devices from found from different sources
+                # then something is wrong. Log a warning and carry on.
+                _LOGGER.warning(
+                    "Mismatched values for device {}: {}".format(
+                        mac, ", ".join(mismatches)
+                    )
+                )
+            else:
+                devices[mac] = Device(
+                    *(val1 or val2 for val1, val2 in zip(devices[mac], device))
+                )
