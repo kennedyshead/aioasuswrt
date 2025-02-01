@@ -10,7 +10,7 @@ https://github.com/pypa/sampleproject
 from setuptools import find_packages, setup
 
 __author__ = "Magnus Knutas"
-VERSION = "1.4.0"
+VERSION = "1.4.1"
 
 with open("README.md", "r") as fh:
     long_description = fh.read()
