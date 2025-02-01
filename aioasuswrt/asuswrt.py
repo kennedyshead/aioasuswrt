@@ -292,7 +292,7 @@ class AsusWrt:
     async def async_get_nvram(self, to_get, use_cache=True):
         """Gets nvram"""
         data = {}
-        if not (to_get in GET_LIST):
+        if to_get not in GET_LIST:
             return data
 
         now = datetime.utcnow()
@@ -604,7 +604,7 @@ class AsusWrt:
         # stop all running vpn clients
         for i in range(_VPN_AMOUNT):
             await self.connection.async_run_command(
-                _VPN_START_CMD.format(id=(i + 1))
+                _VPN_STOP_CMD.format(id=(i + 1))
             )
 
         # actually start vpn
