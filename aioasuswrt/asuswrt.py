@@ -276,7 +276,7 @@ class AsusWrt:
         if not (to_get in GET_LIST):
             return data
 
-        now = datetime.utcnow()
+        now = datetime.now(datetime.timezone.utc)
         if use_cache and self._nvram_cache_timer and self._cache_time > (now - self._nvram_cache_timer).total_seconds():
             lines = self._nvram_cache
         else:
@@ -382,7 +382,7 @@ class AsusWrt:
         # Delay 180 seconds removal of previously detected wired devices.
         # This is to avoid continuous add and remove in some circumstance
         # with devices connected via additional hub.
-        cur_time = datetime.utcnow()
+        cur_time = datetime.now(datetime.timezone.utc)
         for dev_mac, dev_data in list_wired.items():
             if dev_data.get("ip"):
                 mac = dev_mac.upper()
@@ -407,7 +407,7 @@ class AsusWrt:
         Calls various commands on the router and returns the superset of all
         responses. Some commands will not work on some routers.
         """
-        now = datetime.utcnow()
+        now = datetime.now(datetime.timezone.utc)
         if use_cache and self._dev_cache_timer and self._cache_time > (now - self._dev_cache_timer).total_seconds():
             return self._devices_cache
 
@@ -431,7 +431,7 @@ class AsusWrt:
 
     async def async_get_bytes_total(self, use_cache=True):
         """Retrieve total bytes (rx an tx) from ASUSWRT."""
-        now = datetime.utcnow()
+        now = datetime.now(datetime.timezone.utc)
         if use_cache and self._trans_cache_timer and self._cache_time > (now - self._trans_cache_timer).total_seconds():
             return self._transfer_rates_cache
 
@@ -451,7 +451,7 @@ class AsusWrt:
 
     async def async_get_current_transfer_rates(self, use_cache=True):
         """Gets current transfer rates calculated in per second in bytes."""
-        now = datetime.utcnow()
+        now = datetime.now(datetime.timezone.utc)
         data = await self.async_get_bytes_total(use_cache)
         if self._rx_latest is None or self._tx_latest is None:
             self._latest_transfer_check = now
