@@ -104,6 +104,20 @@ _TEMP_CPU_CMDS = [
 ]
 _TEMP_CMDS = [_TEMP_24_CMDS, _TEMP_5_CMDS, _TEMP_CPU_CMDS]
 
+_VPN_LIST_REGEX = re.compile(
+    r"(?P<description>.+?)>"
+    r"(?P<type>.+?)>"
+    r"(?P<id>.+?)>"
+    r"(?P<username>.*?)>"
+    r"(?P<password>.*?)(?:<|$)"
+)
+_VPN_AMOUNT = 5
+
+_VPN_START_CMD = "service start_vpnclient{id}"
+_VPN_STOP_CMD = "service stop_vpnclient{id}"
+
+_GET_PID_OF = "pidof {name}"
+
 GET_LIST = {
     "DHCP": [
         "dhcp_dns1_x",
@@ -209,6 +223,11 @@ GET_LIST = {
         "webs_state_url",
     ],
     "LABEL_MAC": ["label_mac"],
+    "VPN": [
+        "vpnc_clientlist",
+    ]+ [
+        f"vpn_client{ i + 1 }_state" for i in range(_VPN_AMOUNT)
+    ],
 }
 
 Device = namedtuple("Device", ["mac", "ip", "name"])
@@ -273,7 +292,7 @@ class AsusWrt:
     async def async_get_nvram(self, to_get, use_cache=True):
         """Gets nvram"""
         data = {}
-        if not (to_get in GET_LIST):
+        if to_get not in GET_LIST:
             return data
 
         now = datetime.utcnow()
@@ -285,7 +304,7 @@ class AsusWrt:
             self._nvram_cache_timer = now
 
         for item in GET_LIST[to_get]:
-            regex = rf"^{item}=([\w.\-/: ]+)"
+            regex = rf"^{item}=([\w.\-/: <>]+)"
             for line in lines:
                 result = re.findall(regex, line)
                 if result:
@@ -552,6 +571,52 @@ class AsusWrt:
             result[i] = cmd_result[0].split(" ")[self._temps_commands[i]["result_loc"]]
             result[i] = eval("float(" + result[i] + ")" + self._temps_commands[i]["eval"])
         return dict(zip(["2.4GHz", "5.0GHz", "CPU"], result))
+
+    async def async_get_vpn_clients(self):
+        """Get current vpn clients"""
+        data = await self.async_get_nvram("VPN", use_cache=False)
+        vpn_list = data["vpnc_clientlist"]
+
+        vpns = []
+        for m in re.finditer(_VPN_LIST_REGEX, vpn_list):
+            id = m.group("id")
+            pid = await self.connection.async_run_command(
+                _GET_PID_OF.format(name=f"vpnclient{id}")
+            )
+
+            vpn = {k: v for k, v in m.groupdict().items() if v}
+            vpn_state_key = f"vpn_client{id}_state"
+            vpn_state = int(data.get(vpn_state_key, 0))
+
+            if vpn_state == 0 or not pid:
+                vpn["state"] = "off"
+            elif vpn_state == 1:
+                vpn["state"] = "starting"
+            elif vpn_state == 2:
+                vpn["state"] = "on"
+
+            vpns.append(vpn)
+
+        return vpns
+
+    async def async_start_vpn_client(self, id):
+        """Starts a vpn client by id"""
+        # stop all running vpn clients
+        for i in range(_VPN_AMOUNT):
+            await self.connection.async_run_command(
+                _VPN_STOP_CMD.format(id=(i + 1))
+            )
+
+        # actually start vpn
+        return await self.connection.async_run_command(
+            _VPN_START_CMD.format(id=id)
+        )
+
+    async def async_stop_vpn_client(self, id):
+        """Stops a vpn client by id"""
+        return await self.connection.async_run_command(
+            _VPN_STOP_CMD.format(id=id)
+        )
 
     @property
     def is_connected(self):
