@@ -172,7 +172,7 @@ class SshConnection(_BaseConnection):
             "port": self._port,
             "password": self._password if self._password else None,
             "known_hosts": None,
-            'server_host_key_algs': ['ssh-rsa'],
+            'server_host_key_algs': ['ssh-rsa', 'rsa-sha2-256', 'rsa-sha2-512', 'ecdsa-sha2-nistp256', 'ecdsa-sha2-nistp384', 'ecdsa-sha2-nistp521', 'ssh-ed25519', 'ssh-ed448'],
         }
         async with self._lock:
           if self.is_connected:
