@@ -147,3 +147,4 @@ fabric.properties
 
 test.py
 upload.sh
+.pytest_cache
