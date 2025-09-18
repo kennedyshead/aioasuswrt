@@ -1,6 +1,8 @@
 # AioAsusWRT
 
-Small wrapper for asuswrt. ![Python package](https://github.com/kennedyshead/aioasuswrt/workflows/Python%20package/badge.svg)
+![Python package](https://github.com/kennedyshead/aioasuswrt/workflows/Python%20package/badge.svg)
+
+Small wrapper for asuswrt.
 
 ## Setup
 
