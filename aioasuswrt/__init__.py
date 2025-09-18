@@ -1,3 +1,3 @@
 """aioasuswrt package."""
 
-__version__ = "1.5.0"
+__version__ = "pre-1.5.0"
