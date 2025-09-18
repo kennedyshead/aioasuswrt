@@ -1,5 +1,6 @@
 from aioasuswrt.asuswrt import Device
 
+# flake8: noqa
 
 RX_DATA = ["2703926881", ""]
 TX_DATA = ["648110137", ""]
@@ -7,7 +8,14 @@ TX_DATA = ["648110137", ""]
 RX = 2703926881
 TX = 648110137
 
-TEMP_DATA = [["59 (0x3b)\r"], ["69 (0x45)\r"], ["CPU temperature	: 77"], ["59 (0x3b)\r"], ["69 (0x45)\r"], ["CPU temperature	: 77"]]
+TEMP_DATA = [
+    ["59 (0x3b)\r"],
+    ["69 (0x45)\r"],
+    ["CPU temperature	: 77"],
+    ["59 (0x3b)\r"],
+    ["69 (0x45)\r"],
+    ["CPU temperature	: 77"],
+]
 TEMP_DATA_2ND = [[""], [""], [""], [""], [""], ["81300"], ["81300"]]
 
 NETDEV_DATA = [
@@ -340,7 +348,9 @@ ARP_DEVICES = {
     "AB:CD:DE:AB:CD:EF": Device(
         mac="AB:CD:DE:AB:CD:EF", ip="123.123.123.128", name=None
     ),
-    "00:25:90:12:2D:90": Device(mac="00:25:90:12:2D:90", ip="172.16.10.2", name=None),
+    "00:25:90:12:2D:90": Device(
+        mac="00:25:90:12:2D:90", ip="172.16.10.2", name=None
+    ),
 }
 
 NEIGH_DATA = [
@@ -374,15 +384,21 @@ LEASES_DEVICES = {
     "01:02:03:04:06:08": Device(
         mac="01:02:03:04:06:08", ip="123.123.123.125", name="TV"
     ),
-    "08:09:10:11:12:14": Device(mac="08:09:10:11:12:14", ip="123.123.123.126", name=""),
+    "08:09:10:11:12:14": Device(
+        mac="08:09:10:11:12:14", ip="123.123.123.126", name=""
+    ),
 }
 
 WAKE_DEVICES = {
     "01:02:03:04:06:08": Device(
         mac="01:02:03:04:06:08", ip="123.123.123.125", name="TV"
     ),
-    "08:09:10:11:12:14": Device(mac="08:09:10:11:12:14", ip="123.123.123.126", name=""),
-    "00:25:90:12:2D:90": Device(mac="00:25:90:12:2D:90", ip="172.16.10.2", name=None),
+    "08:09:10:11:12:14": Device(
+        mac="08:09:10:11:12:14", ip="123.123.123.126", name=""
+    ),
+    "00:25:90:12:2D:90": Device(
+        mac="00:25:90:12:2D:90", ip="172.16.10.2", name=None
+    ),
 }
 
 WAKE_DEVICES_AP = {
@@ -395,7 +411,9 @@ WAKE_DEVICES_AP = {
     "AB:CD:DE:AB:CD:EF": Device(
         mac="AB:CD:DE:AB:CD:EF", ip="123.123.123.128", name=None
     ),
-    "00:25:90:12:2D:90": Device(mac="00:25:90:12:2D:90", ip="172.16.10.2", name=None),
+    "00:25:90:12:2D:90": Device(
+        mac="00:25:90:12:2D:90", ip="172.16.10.2", name=None
+    ),
 }
 
 WAKE_DEVICES_NO_IP = {
@@ -409,5 +427,7 @@ WAKE_DEVICES_NO_IP = {
     "AB:CD:DE:AB:CD:EF": Device(
         mac="AB:CD:DE:AB:CD:EF", ip="123.123.123.128", name=None
     ),
-    "00:25:90:12:2D:90": Device(mac="00:25:90:12:2D:90", ip="172.16.10.2", name=None),
+    "00:25:90:12:2D:90": Device(
+        mac="00:25:90:12:2D:90", ip="172.16.10.2", name=None
+    ),
 }

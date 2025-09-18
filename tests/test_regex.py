@@ -1,4 +1,5 @@
 import pytest
+
 from aioasuswrt.asuswrt import AsusWrt
 
 from .test_data import (
@@ -35,7 +36,9 @@ def mock_run_cmd(mocker, values):
             return values[iter - 1]
         except IndexError:
             print(
-                f"Not enough elements in return list! Iteration {iter} while list is {len(values)}."
+                f"Not enough elements in return list! Iteration {
+                    iter
+                } while list is {len(values)}."
             )
             assert False
 
@@ -46,7 +49,7 @@ def mock_run_cmd(mocker, values):
 
 
 @pytest.mark.asyncio
-async def test_get_wl(event_loop, mocker):
+async def test_get_wl(mocker):
     """Testing wl."""
     mock_run_cmd(mocker, [WL_DATA])
     scanner = AsusWrt(host="localhost", port=22)
@@ -55,7 +58,7 @@ async def test_get_wl(event_loop, mocker):
 
 
 @pytest.mark.asyncio
-async def test_get_wl_empty(event_loop, mocker):
+async def test_get_wl_empty(mocker):
     """Testing wl."""
     mock_run_cmd(mocker, [""])
     scanner = AsusWrt(host="localhost", port=22)
@@ -64,7 +67,7 @@ async def test_get_wl_empty(event_loop, mocker):
 
 
 @pytest.mark.asyncio
-async def test_async_get_leases(event_loop, mocker):
+async def test_async_get_leases(mocker):
     """Testing leases."""
     mock_run_cmd(mocker, [LEASES_DATA])
     scanner = AsusWrt(host="localhost", port=22)
@@ -73,7 +76,7 @@ async def test_async_get_leases(event_loop, mocker):
 
 
 @pytest.mark.asyncio
-async def test_get_arp(event_loop, mocker):
+async def test_get_arp(mocker):
     """Testing arp."""
     mock_run_cmd(mocker, [ARP_DATA])
     scanner = AsusWrt(host="localhost", port=22)
@@ -82,7 +85,7 @@ async def test_get_arp(event_loop, mocker):
 
 
 @pytest.mark.asyncio
-async def test_get_neigh(event_loop, mocker):
+async def test_get_neigh(mocker):
     """Testing neigh."""
     mock_run_cmd(mocker, [NEIGH_DATA])
     scanner = AsusWrt(host="localhost", port=22)
@@ -91,7 +94,7 @@ async def test_get_neigh(event_loop, mocker):
 
 
 @pytest.mark.asyncio
-async def test_get_connected_devices_ap(event_loop, mocker):
+async def test_get_connected_devices_ap(mocker):
     """Test for get asuswrt_data in ap mode."""
     # Note, unfortunately the order of data is important and should be the
     # same as in the `async_get_connected_devices` function.
@@ -102,7 +105,7 @@ async def test_get_connected_devices_ap(event_loop, mocker):
 
 
 @pytest.mark.asyncio
-async def test_get_connected_devices_no_ip(event_loop, mocker):
+async def test_get_connected_devices_no_ip(mocker):
     """Test for get asuswrt_data and not requiring ip."""
     mock_run_cmd(mocker, [WL_DATA, ARP_DATA, NEIGH_DATA, LEASES_DATA])
     scanner = AsusWrt(host="localhost", port=22, mode="ap", require_ip=False)
@@ -111,7 +114,7 @@ async def test_get_connected_devices_no_ip(event_loop, mocker):
 
 
 @pytest.mark.asyncio
-async def test_get_packets_total(event_loop, mocker):
+async def test_get_packets_total(mocker):
     """Test getting packet totals."""
     mock_run_cmd(mocker, [TX_DATA, RX_DATA])
     scanner = AsusWrt(host="localhost", port=22, mode="ap", require_ip=False)
@@ -122,7 +125,7 @@ async def test_get_packets_total(event_loop, mocker):
 
 
 @pytest.mark.asyncio
-async def test_async_get_temperature(event_loop, mocker):
+async def test_async_get_temperature(mocker):
     """Test getting temperature."""
     mock_run_cmd(mocker, TEMP_DATA)
     scanner = AsusWrt(host="localhost", port=22, mode="ap", require_ip=False)
@@ -136,7 +139,7 @@ async def test_async_get_temperature(event_loop, mocker):
 
 
 @pytest.mark.asyncio
-async def test_async_get_loadavg(event_loop, mocker):
+async def test_async_get_loadavg(mocker):
     """Test getting loadavg."""
     mock_run_cmd(mocker, [LOADAVG_DATA])
     scanner = AsusWrt(host="localhost", port=22, mode="ap", require_ip=False)
@@ -145,7 +148,7 @@ async def test_async_get_loadavg(event_loop, mocker):
 
 
 @pytest.mark.asyncio
-async def test_async_get_interfaces_counts(event_loop, mocker):
+async def test_async_get_interfaces_counts(mocker):
     """Test getting loadavg."""
     mock_run_cmd(mocker, [NETDEV_DATA])
     scanner = AsusWrt(host="localhost", port=22, mode="ap", require_ip=False)
@@ -154,7 +157,7 @@ async def test_async_get_interfaces_counts(event_loop, mocker):
 
 
 # @pytest.mark.asyncio
-# async def test_async_get_meminfo(event_loop, mocker):
+# async def test_async_get_meminfo():
 #     """Test getting meminfo."""
 #     mocker.patch(
 #         'aioasuswrt.connection.SshConnection.async_run_command',

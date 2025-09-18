@@ -1,21 +1,22 @@
 """Module for Asuswrt."""
-import inspect
+
 import json
 import logging
 import math
 import re
 from collections import namedtuple
-from datetime import datetime
+from datetime import UTC, datetime
+from typing import Any, Dict, Iterable, List, Optional, Pattern, Tuple, Union
 
 from aioasuswrt.connection import create_connection
 from aioasuswrt.helpers import convert_size
 
 _LOGGER = logging.getLogger(__name__)
 
-CHANGE_TIME_CACHE_DEFAULT = 5  # Default 5s
+CHANGE_TIME_CACHE_DEFAULT: int = 5  # Default 5s
 
-_LEASES_CMD = "cat {}/dnsmasq.leases"
-_LEASES_REGEX = re.compile(
+_LEASES_CMD: str = "cat {}/dnsmasq.leases"
+_LEASES_REGEX: Pattern[str] = re.compile(
     r"\w+\s"
     r"(?P<mac>(([0-9a-fA-F]{2}[:-]){5}([0-9a-fA-F]{2})))\s"
     r"(?P<ip>([0-9]{1,3}[\.]){3}[0-9]{1,3})\s"
@@ -23,21 +24,23 @@ _LEASES_REGEX = re.compile(
 )
 
 # Command to get both 5GHz and 2.4GHz clients
-_WL_CMD = (
+_WL_CMD: str = (
     "for dev in `nvram get wl1_vifs && nvram get wl0_vifs && "
     "nvram get wl_ifnames`; do "
     "if type wlanconfig > /dev/null; then "
     "wlanconfig $dev list | awk 'FNR > 1 {print substr($1, 0, 18)}';"
     " else wl -i $dev assoclist; fi; done"
 )
-_WL_REGEX = re.compile(r"\w+\s" r"(?P<mac>(([0-9A-F]{2}[:-]){5}([0-9A-F]{2})))")
+_WL_REGEX: Pattern[str] = re.compile(
+    r"\w+\s" r"(?P<mac>(([0-9A-F]{2}[:-]){5}([0-9A-F]{2})))"
+)
 
-_CLIENTLIST_CMD = "cat /tmp/clientlist.json"
+_CLIENTLIST_CMD: str = "cat /tmp/clientlist.json"
 
-_NVRAM_CMD = "nvram show"
+_NVRAM_CMD: str = "nvram show"
 
-_IP_NEIGH_CMD = "ip neigh"
-_IP_NEIGH_REGEX = re.compile(
+_IP_NEIGH_CMD: str = "ip neigh"
+_IP_NEIGH_REGEX: Pattern[str] = re.compile(
     r"(?P<ip>([0-9]{1,3}[\.]){3}[0-9]{1,3}|"
     r"([0-9a-fA-F]{1,4}:){1,7}[0-9a-fA-F]{0,4}(:[0-9a-fA-F]{1,4}){1,7})\s"
     r"\w+\s"
@@ -48,8 +51,8 @@ _IP_NEIGH_REGEX = re.compile(
     r"(?P<status>(\w+))"
 )
 
-_ARP_CMD = "arp -n"
-_ARP_REGEX = re.compile(
+_ARP_CMD: str = "arp -n"
+_ARP_REGEX: Pattern[str] = re.compile(
     r".+\s"
     r"\((?P<ip>([0-9]{1,3}[\.]){3}[0-9]{1,3})\)\s"
     r".+\s"
@@ -58,19 +61,19 @@ _ARP_REGEX = re.compile(
     r".*"
 )
 
-_RX_COMMAND = "cat /sys/class/net/{}/statistics/rx_bytes"
-_TX_COMMAND = "cat /sys/class/net/{}/statistics/tx_bytes"
+_RX_COMMAND: str = "cat /sys/class/net/{}/statistics/rx_bytes"
+_TX_COMMAND: str = "cat /sys/class/net/{}/statistics/tx_bytes"
 
-_MEMINFO_CMD = "cat /proc/meminfo"
-_LOADAVG_CMD = "cat /proc/loadavg"
-_ADDHOST_CMD = (
+_MEMINFO_CMD: str = "cat /proc/meminfo"
+_LOADAVG_CMD: str = "cat /proc/loadavg"
+_ADDHOST_CMD: str = (
     'cat /etc/hosts | grep -q "{ipaddress} {hostname}" || '
     '(echo "{ipaddress} {hostname}" >> /etc/hosts && '
     "kill -HUP `cat /var/run/dnsmasq.pid`)"
 )
 
-_NETDEV_CMD = "cat /proc/net/dev"
-_NETDEV_FIELDS = [
+_NETDEV_CMD: str = "cat /proc/net/dev"
+_NETDEV_FIELDS: List[str] = [
     "tx_bytes",
     "tx_packets",
     "tx_errs",
@@ -89,36 +92,60 @@ _NETDEV_FIELDS = [
     "rx_compressed",
 ]
 
-_TEMP_RADIO_EVAL = " / 2 + 20"
-_TEMP_24_CMDS = [
-    {"cmd": "wl -i eth1 phy_tempsense", "result_loc": 0, "eval": _TEMP_RADIO_EVAL},
-    {"cmd": "wl -i eth5 phy_tempsense", "result_loc": 0, "eval": _TEMP_RADIO_EVAL},
+_TEMP_RADIO_EVAL: str = " / 2 + 20"
+_TEMP_24_CMDS: List[Dict[str, Union[str, int]]] = [
+    {
+        "cmd": "wl -i eth1 phy_tempsense",
+        "result_loc": 0,
+        "eval": _TEMP_RADIO_EVAL,
+    },
+    {
+        "cmd": "wl -i eth5 phy_tempsense",
+        "result_loc": 0,
+        "eval": _TEMP_RADIO_EVAL,
+    },
 ]
-_TEMP_5_CMDS = [
-    {"cmd": "wl -i eth2 phy_tempsense", "result_loc": 0, "eval": _TEMP_RADIO_EVAL},
-    {"cmd": "wl -i eth6 phy_tempsense", "result_loc": 0, "eval": _TEMP_RADIO_EVAL},
+_TEMP_5_CMDS: List[Dict[str, Union[str, int]]] = [
+    {
+        "cmd": "wl -i eth2 phy_tempsense",
+        "result_loc": 0,
+        "eval": _TEMP_RADIO_EVAL,
+    },
+    {
+        "cmd": "wl -i eth6 phy_tempsense",
+        "result_loc": 0,
+        "eval": _TEMP_RADIO_EVAL,
+    },
 ]
-_TEMP_CPU_CMDS = [
+_TEMP_CPU_CMDS: List[Dict[str, Union[str, int]]] = [
     {"cmd": "head -c20 /proc/dmu/temperature", "result_loc": 2, "eval": ""},
-    {"cmd": "head -c5 /sys/class/thermal/thermal_zone0/temp", "result_loc": 0, "eval": " / 1000"},
+    {
+        "cmd": "head -c5 /sys/class/thermal/thermal_zone0/temp",
+        "result_loc": 0,
+        "eval": " / 1000",
+    },
 ]
-_TEMP_CMDS = [_TEMP_24_CMDS, _TEMP_5_CMDS, _TEMP_CPU_CMDS]
+_TEMP_CMDS: List[List[Dict[str, Union[str, int]]]] = [
+    _TEMP_24_CMDS,
+    _TEMP_5_CMDS,
+    _TEMP_CPU_CMDS,
+]
 
-_VPN_LIST_REGEX = re.compile(
+_VPN_LIST_REGEX: Pattern[str] = re.compile(
     r"(?P<description>.+?)>"
     r"(?P<type>.+?)>"
     r"(?P<id>.+?)>"
     r"(?P<username>.*?)>"
     r"(?P<password>.*?)(?:<|$)"
 )
-_VPN_AMOUNT = 5
+_VPN_AMOUNT: int = 5
 
-_VPN_START_CMD = "service start_vpnclient{id}"
-_VPN_STOP_CMD = "service stop_vpnclient{id}"
+_VPN_START_CMD: str = "service start_vpnclient{id}"
+_VPN_STOP_CMD: str = "service stop_vpnclient{id}"
 
-_GET_PID_OF = "pidof {name}"
+_GET_PID_OF: str = "pidof {name}"
 
-GET_LIST = {
+GET_LIST: Dict[str, List[str]] = {
     "DHCP": [
         "dhcp_dns1_x",
         "dhcp_dns2_x",
@@ -225,22 +252,22 @@ GET_LIST = {
     "LABEL_MAC": ["label_mac"],
     "VPN": [
         "vpnc_clientlist",
-    ]+ [
-        f"vpn_client{ i + 1 }_state" for i in range(_VPN_AMOUNT)
-    ],
+    ]
+    + [f"vpn_client{i + 1}_state" for i in range(_VPN_AMOUNT)],
 }
 
 Device = namedtuple("Device", ["mac", "ip", "name"])
 
 
-async def _parse_lines(lines, regex):
-    """Parse the lines using the given regular expression.
+async def _parse_lines(
+    lines: List[str], regex: Pattern[str]
+) -> List[Dict[str, Union[str, Any]]]:
+    """
+    Parse the lines using the given regular expression.
 
     If a line can't be parsed it is logged and skipped in the output.
     """
     results = []
-    if inspect.iscoroutinefunction(lines):
-        lines = await lines
     for line in lines:
         if line:
             match = regex.search(line)
@@ -256,52 +283,68 @@ class AsusWrt:
 
     def __init__(
         self,
-        host,
-        port=None,
-        use_telnet=False,
-        username=None,
-        password=None,
-        ssh_key=None,
-        mode="router",
-        require_ip=False,
-        time_cache=CHANGE_TIME_CACHE_DEFAULT,
-        interface="eth0",
-        dnsmasq="/var/lib/misc",
-    ):
+        host: str,
+        port: Optional[int] = None,
+        use_telnet: bool = False,
+        username: Optional[str] = None,
+        password: Optional[str] = None,
+        ssh_key: Optional[str] = None,
+        mode: str = "router",
+        require_ip: bool = False,
+        time_cache: int = CHANGE_TIME_CACHE_DEFAULT,
+        interface: str = "eth0",
+        dnsmasq: str = "/var/lib/misc",
+    ) -> None:
         """Init function."""
         self.require_ip = require_ip
         self.mode = mode
-        self._rx_latest = None
-        self._tx_latest = None
-        self._latest_transfer_check = None
+        self._rx_latest: Optional[float] = None
+        self._tx_latest: Optional[float] = None
+        self._latest_transfer_check: Optional[datetime] = None
         self._cache_time = time_cache
         self._trans_cache_timer = None
-        self._dev_cache_timer = None
-        self._devices_cache = None
+        self._dev_cache_timer: Optional[datetime] = None
+        self._devices_cache: Optional[Dict[str, Device]] = None
         self._transfer_rates_cache = None
         self._latest_transfer_data = 0, 0
-        self._nvram_cache_timer = None
-        self._nvram_cache = None
-        self._temps_commands = [None, None, None]
-        self._list_wired = {}
+        self._nvram_cache_timer: Optional[datetime] = None
+        self._nvram_cache: Optional[List[str]] = None
+        self._temps_commands: List[Optional[Dict[str, Union[str, int]]]] = [
+            None,
+            None,
+            None,
+        ]
+        self._list_wired: Dict[str, datetime] = {}
         self.interface = interface
         self.dnsmasq = dnsmasq
 
-        self.connection = create_connection(use_telnet, host, port, username, password, ssh_key)
+        self.connection = create_connection(
+            use_telnet, host, port, username, password, ssh_key
+        )
 
-    async def async_get_nvram(self, to_get, use_cache=True):
-        """Gets nvram"""
-        data = {}
+    async def async_get_nvram(
+        self, to_get: str, use_cache: bool = True
+    ) -> Dict[str, str]:
+        """Get nvram."""
+        data: Dict[str, str] = {}
         if to_get not in GET_LIST:
             return data
 
-        now = datetime.now(datetime.timezone.utc)
-        if use_cache and self._nvram_cache_timer and self._cache_time > (now - self._nvram_cache_timer).total_seconds():
+        now = datetime.now(UTC)
+        if (
+            use_cache
+            and self._nvram_cache_timer
+            and self._cache_time
+            > (now - self._nvram_cache_timer).total_seconds()
+        ):
             lines = self._nvram_cache
         else:
             lines = await self.connection.async_run_command(_NVRAM_CMD)
             self._nvram_cache = lines
             self._nvram_cache_timer = now
+        if not lines:
+            _LOGGER.warning("No devices found in router")
+            return data
 
         for item in GET_LIST[to_get]:
             regex = rf"^{item}=([\w.\-/: <>]+)"
@@ -312,8 +355,8 @@ class AsusWrt:
                     break
         return data
 
-    async def async_get_wl(self):
-        """gets wl"""
+    async def async_get_wl(self) -> Dict[str, Device]:
+        """Get wl."""
         lines = await self.connection.async_run_command(_WL_CMD)
         if not lines:
             return {}
@@ -324,9 +367,13 @@ class AsusWrt:
             devices[mac] = Device(mac, None, None)
         return devices
 
-    async def async_get_leases(self, cur_devices):
-        """Gets leases"""
-        lines = await self.connection.async_run_command(_LEASES_CMD.format(self.dnsmasq))
+    async def async_get_leases(
+        self, cur_devices: Dict[str, Device]
+    ) -> Dict[str, Device]:
+        """Get leases."""
+        lines = await self.connection.async_run_command(
+            _LEASES_CMD.format(self.dnsmasq)
+        )
         if not lines:
             return {}
         lines = [line for line in lines if not line.startswith("duid ")]
@@ -343,8 +390,10 @@ class AsusWrt:
                 devices[mac] = Device(mac, device["ip"], host)
         return devices
 
-    async def async_get_neigh(self, cur_devices):
-        """Gets neigh"""
+    async def async_get_neigh(
+        self, cur_devices: Dict[str, Device]
+    ) -> Dict[str, Device]:
+        """Get neigh."""
         lines = await self.connection.async_run_command(_IP_NEIGH_CMD)
         if not lines:
             return {}
@@ -361,8 +410,8 @@ class AsusWrt:
                 devices[mac] = Device(mac, device.get("ip", old_ip), None)
         return devices
 
-    async def async_get_arp(self):
-        """Gets arp"""
+    async def async_get_arp(self) -> Dict[str, Device]:
+        """Get arp."""
         lines = await self.connection.async_run_command(_ARP_CMD)
         if not lines:
             return {}
@@ -374,8 +423,10 @@ class AsusWrt:
                 devices[mac] = Device(mac, device["ip"], None)
         return devices
 
-    async def async_filter_dev_list(self, cur_devices):
-        """Filter devices list using 'clientlist.json' files if available"""
+    async def async_filter_dev_list(
+        self, cur_devices: Dict[str, Device]
+    ) -> Dict[str, Device]:
+        """Filter devices list using 'clientlist.json' files if available."""
         lines = await self.connection.async_run_command(_CLIENTLIST_CMD)
         if not lines:
             return cur_devices
@@ -401,7 +452,7 @@ class AsusWrt:
         # Delay 180 seconds removal of previously detected wired devices.
         # This is to avoid continuous add and remove in some circumstance
         # with devices connected via additional hub.
-        cur_time = datetime.now(datetime.timezone.utc)
+        cur_time = datetime.now(UTC)
         for dev_mac, dev_data in list_wired.items():
             if dev_data.get("ip"):
                 mac = dev_mac.upper()
@@ -420,17 +471,26 @@ class AsusWrt:
 
         return devices
 
-    async def async_get_connected_devices(self, use_cache=True):
-        """Retrieve data from ASUSWRT.
+    async def async_get_connected_devices(
+        self, use_cache: bool = True
+    ) -> Dict[str, Device]:
+        """
+        Retrieve data from ASUSWRT.
 
         Calls various commands on the router and returns the superset of all
         responses. Some commands will not work on some routers.
         """
-        now = datetime.now(datetime.timezone.utc)
-        if use_cache and self._dev_cache_timer and self._cache_time > (now - self._dev_cache_timer).total_seconds():
+        now = datetime.now(UTC)
+        if (
+            use_cache
+            and self._devices_cache
+            and self._dev_cache_timer
+            and self._cache_time
+            > (now - self._dev_cache_timer).total_seconds()
+        ):
             return self._devices_cache
 
-        devices = {}
+        devices: Dict[str, Device] = {}
         dev = await self.async_get_wl()
         merge_devices(devices, dev)
         dev = await self.async_get_arp()
@@ -442,35 +502,52 @@ class AsusWrt:
             merge_devices(devices, dev)
 
         filter_devices = await self.async_filter_dev_list(devices)
-        ret_devices = {key: dev for key, dev in filter_devices.items() if not self.require_ip or dev.ip is not None}
+        ret_devices = {
+            key: dev
+            for key, dev in filter_devices.items()
+            if not self.require_ip or dev.ip is not None
+        }
 
         self._devices_cache = ret_devices
         self._dev_cache_timer = now
         return ret_devices
 
-    async def async_get_bytes_total(self, use_cache=True):
+    async def async_get_bytes_total(
+        self, use_cache: bool = True
+    ) -> Tuple[Optional[float], Optional[float]]:
         """Retrieve total bytes (rx an tx) from ASUSWRT."""
-        now = datetime.now(datetime.timezone.utc)
-        if use_cache and self._trans_cache_timer and self._cache_time > (now - self._trans_cache_timer).total_seconds():
+        now = datetime.now(UTC)
+        if (
+            use_cache
+            and self._trans_cache_timer
+            and self._cache_time
+            > (now - self._trans_cache_timer).total_seconds()
+        ):
             return self._transfer_rates_cache
 
         rx = await self.async_get_rx()
         tx = await self.async_get_tx()
         return rx, tx
 
-    async def async_get_rx(self):
+    async def async_get_rx(self) -> Optional[float]:
         """Get current RX total given in bytes."""
-        data = await self.connection.async_run_command(_RX_COMMAND.format(self.interface))
+        data = await self.connection.async_run_command(
+            _RX_COMMAND.format(self.interface)
+        )
         return float(data[0]) if data[0] != "" else None
 
-    async def async_get_tx(self):
+    async def async_get_tx(self) -> Optional[float]:
         """Get current RX total given in bytes."""
-        data = await self.connection.async_run_command(_TX_COMMAND.format(self.interface))
+        data = await self.connection.async_run_command(
+            _TX_COMMAND.format(self.interface)
+        )
         return float(data[0]) if data[0] != "" else None
 
-    async def async_get_current_transfer_rates(self, use_cache=True):
-        """Gets current transfer rates calculated in per second in bytes."""
-        now = datetime.now(datetime.timezone.utc)
+    async def async_get_current_transfer_rates(
+        self, use_cache: bool = True
+    ) -> Tuple[float, float]:
+        """Get current transfer rates calculated in per second in bytes."""
+        now = datetime.now(UTC)
         data = await self.async_get_bytes_total(use_cache)
         if self._rx_latest is None or self._tx_latest is None:
             self._latest_transfer_check = now
@@ -478,18 +555,21 @@ class AsusWrt:
             self._tx_latest = data[1]
             return self._latest_transfer_data
 
-        time_diff = now - self._latest_transfer_check
+        time_diff = now - (self._latest_transfer_check or now)
         if time_diff.total_seconds() < 30:
             return self._latest_transfer_data
+        if data[0] and self._rx_latest is not None:
+            if data[0] < self._rx_latest:
+                rx = data[0]
+            else:
+                rx = data[0] - self._rx_latest
 
-        if data[0] < self._rx_latest:
-            rx = data[0]
-        else:
-            rx = data[0] - self._rx_latest
-        if data[1] < self._tx_latest:
-            tx = data[1]
-        else:
-            tx = data[1] - self._tx_latest
+        if data[1] and self._tx_latest is not None:
+            if data[1] < self._tx_latest:
+                tx = data[1]
+            else:
+                tx = data[1] - self._tx_latest
+
         self._latest_transfer_check = now
 
         self._rx_latest = data[0]
@@ -501,78 +581,92 @@ class AsusWrt:
         )
         return self._latest_transfer_data
 
-    async def async_current_transfer_human_readable(self, use_cache=True):
-        """Gets current transfer rates in a human readable format."""
+    async def async_current_transfer_human_readable(
+        self, use_cache: bool = True
+    ) -> Optional[tuple[str, str]]:
+        """Get current transfer rates in a human readable format."""
         rx, tx = await self.async_get_current_transfer_rates(use_cache)
 
-        return "%s/s" % convert_size(rx), "%s/s" % convert_size(tx)
+        if rx is not None and tx is not None:
+            return "%s/s" % convert_size(rx), "%s/s" % convert_size(tx)
 
-    async def async_get_loadavg(self):
+    async def async_get_loadavg(self) -> List[float]:
         """Get loadavg."""
         loadavg = list(
             map(
                 lambda avg: float(avg),
-                (await self.connection.async_run_command(_LOADAVG_CMD))[0].split(" ")[0:3],
+                (await self.connection.async_run_command(_LOADAVG_CMD))[
+                    0
+                ].split(" ")[0:3],
             )
         )
         return loadavg
 
-    #    async def async_get_meminfo(self):
-    #        """Get Memory information."""
-    #        memory_info = await self.connection.async_run_command(_MEMINFO_CMD)
-    #        memory_info = filter(lambda s: s != '', memory_info)
-    #        ret = {}
-    #        for item in list(map(lambda i: i.split(' '), memory_info)):
-    #            name = re.sub(r'(?<!^)(?=[A-Z])', '_', item[0]).lower()
-    #            ret[name] = list(filter(lambda i: i != '', item[1].split(' ')))
-    #            ret[name][0] = int(ret[name][0])
-    #
-    #        return ret
-
-    async def async_add_dns_record(self, hostname, ipaddress):
+    async def async_add_dns_record(
+        self, hostname: str, ipaddress: str
+    ) -> Optional[List[str]]:
         """Add record to /etc/hosts and HUP dnsmask to catch this record."""
-        return await self.connection.async_run_command(_ADDHOST_CMD.format(hostname=hostname, ipaddress=ipaddress))
+        return await self.connection.async_run_command(
+            _ADDHOST_CMD.format(hostname=hostname, ipaddress=ipaddress)
+        )
 
-    async def async_get_interfaces_counts(self):
+    async def async_get_interfaces_counts(
+        self,
+    ) -> Dict[str, Any]:
         """Get counters for all network interfaces."""
-        lines = await self.connection.async_run_command(_NETDEV_CMD)
-        lines = list(map(lambda i: list(filter(lambda j: j != "", i.split(" "))), lines[2:-1]))
-        interfaces = map(
-            lambda i: [
+        net_dev_lines = await self.connection.async_run_command(_NETDEV_CMD)
+        lines = map(
+            lambda i: list(filter(lambda j: j != "", i.split(" "))),
+            net_dev_lines[2:-1],
+        )
+        interfaces: Iterable[Tuple[str, Any]] = map(
+            lambda i: (
                 i[0][0:-1],
                 dict(zip(_NETDEV_FIELDS, map(lambda j: int(j), i[1:]))),
-            ],
+            ),
             lines,
         )
         return dict(interfaces)
 
-    async def async_find_temperature_commands(self):
+    async def async_find_temperature_commands(self) -> List[float]:
         """Find which temperature commands work with the router, if any."""
         for i in range(3):
+            cmd: Dict[str, Union[str, int]]
             for cmd in _TEMP_CMDS[i]:
                 try:
-                    result = await self.connection.async_run_command(cmd["cmd"])
-                    if result[0].split(" ")[cmd["result_loc"]].isnumeric():
+                    result = await self.connection.async_run_command(
+                        str(cmd["cmd"])
+                    )
+                    if (
+                        result[0]
+                        .split(" ")[int(cmd["result_loc"])]
+                        .isnumeric()
+                    ):
                         self._temps_commands[i] = cmd
                         break
                 except (ValueError, IndexError, OSError):
                     continue
         return [self._temps_commands[i] is not None for i in range(3)]
 
-    async def async_get_temperature(self):
+    async def async_get_temperature(self) -> Dict[str, float]:
         """Get temperature for 2.4GHz/5.0GHz/CPU."""
         result = [0.0, 0.0, 0.0]
         if self._temps_commands == [None, None, None]:
             await self.async_find_temperature_commands()
         for i in range(3):
-            if self._temps_commands[i] is None:
+            cmd: Optional[Dict[str, Union[str, int]]] = self._temps_commands[i]
+            if not isinstance(cmd, dict):
                 continue
-            cmd_result = await self.connection.async_run_command(self._temps_commands[i]["cmd"])
-            result[i] = cmd_result[0].split(" ")[self._temps_commands[i]["result_loc"]]
-            result[i] = eval("float(" + result[i] + ")" + self._temps_commands[i]["eval"])
+            cmd_result: List[str] = (
+                await self.connection.async_run_command(str(cmd["cmd"]))
+            )[0].split(" ")
+            result.insert(i, float(cmd_result[int(cmd["result_loc"])]))
+            result[i] = eval(  # nosec
+                "float(" + str(result[i]) + ")" + str(cmd["eval"])
+            )
         return dict(zip(["2.4GHz", "5.0GHz", "CPU"], result))
 
-    async def async_get_vpn_clients(self):
+    async def async_get_vpn_clients(self) -> List[Dict[str, str]]:
         """Get current vpn clients"""
         data = await self.async_get_nvram("VPN", use_cache=False)
         vpn_list = data["vpnc_clientlist"]
@@ -599,8 +693,8 @@ class AsusWrt:
 
         return vpns
 
-    async def async_start_vpn_client(self, id):
-        """Starts a vpn client by id"""
+    async def async_start_vpn_client(self, id: int) -> List[str]:
+        """Start a vpn client by id."""
         # stop all running vpn clients
         for i in range(_VPN_AMOUNT):
             await self.connection.async_run_command(
@@ -612,19 +706,23 @@ class AsusWrt:
             _VPN_START_CMD.format(id=id)
         )
 
-    async def async_stop_vpn_client(self, id):
-        """Stops a vpn client by id"""
+    async def async_stop_vpn_client(self, id: int) -> List[str]:
+        """Stop a vpn client by id."""
         return await self.connection.async_run_command(
             _VPN_STOP_CMD.format(id=id)
         )
 
     @property
-    def is_connected(self):
+    def is_connected(self) -> bool:
+        """Is connected property."""
         return self.connection.is_connected
 
 
-def merge_devices(devices, new_devices):
-    """Merge a new list of devices into an existing list
+def merge_devices(
+    devices: Dict[str, Device], new_devices: Dict[str, Device]
+) -> None:
+    """
+    Merge a new list of devices into an existing list.
 
     This merge fills in any null values in the base list if the device
     in the new list has values for them."""
@@ -638,7 +736,8 @@ def merge_devices(devices, new_devices):
                 if val1 and val2 and val1 != val2
             ]
             if mismatches:
-                # if filled values do not match between devices from found from different sources
+                # if filled values do not match between
+                # devices from found from different sources
                 # then something is wrong. Log a warning and carry on.
                 _LOGGER.warning(
                     "Mismatched values for device {}: {}".format(

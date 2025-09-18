@@ -1,0 +1,94 @@
+[project]
+name = "aioasuswrt"
+description = "Api wrapper for Asuswrt https://www.asus.com/ASUSWRT/"
+readme = "README.md"
+requires-python = ">= 3.12"
+license = "MIT"
+license-files = ["LICEN[CS]E.*"]
+authors = [
+  { name = "Magnus Knutas", email = "magnusknutas@gmail.com" },
+]
+maintainers = [
+  { name = "Magnus Knutas", email = "magnusknutas@gmail.com" },
+]
+keywords = [
+  "Asus",
+  "development",
+  "hass",
+  "homeassistant",
+  "iot",
+  "router",
+]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "Programming Language :: Python :: 3",
+  "Topic :: Software Development :: Libraries",
+]
+dependencies = [
+  "asyncssh",
+]
+dynamic = ["version"]
+
+[project.urls]
+"Bug Tracker" = "https://github.com/kennedyshead/aioasuswrt/issues"
+Changelog = "https://github.com/kennedyshead/aioasuswrt/blob/master/CHANGELOG.md"
+Documentation = "https://github.com/kennedyshead/aioasuswrt/blob/master/README.md"
+Homepage = "https://github.com/kennedyshead/aioasuswrt"
+Repository = "https://github.com/kennedyshead/aioasuswrt.git"
+
+[build-system]
+requires = ["setuptools >= 77.0.3"]
+build-backend = "setuptools.build_meta"
+
+[tool.bandit]
+exclude_dirs = ["tests"]
+
+[tool.flake8]
+max_line_length = 79
+
+[tool.mypy]
+python_version = "3.13"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+warn_unused_ignores = true
+explicit_package_bases = true
+strict = true
+follow_imports = "silent"
+exclude = ["^setup.py$", "build", "tests"]
+mypy_path = "$MYPY_CONFIG_FILE_DIR/melissa"
+
+[[tool.mypy.overrides]]
+module = ["asyncssh"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+pythonpath = ["aioasuswrt", "."]
+
+[tool.rope]
+split_imports = false
+ignored_resources = [
+  "**/*.pyc",
+  "*~",
+  ".git",
+  ".tox",
+  ".venv",
+  "venv",
+  "build",
+  "dist",
+  ".mypy_cache",
+  ".pytest_cache",
+  ".coverage",
+  ".DS_Store",
+  ".gitignore",
+  "*.yaml",
+]
+
+[tool.ruff]
+line-length = 79
+
+[tool.yapf.style]
+based_on_style = "pep8"
+column_limit = 79
+indent_width = 4
