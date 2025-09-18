@@ -1,15 +1,19 @@
+# AioAsusWRT
+
 Small wrapper for asuswrt. ![Python package](https://github.com/kennedyshead/aioasuswrt/workflows/Python%20package/badge.svg)
 
-### How to run tests
+## Setup
 
-Install [tox](https://tox.wiki/en/latest/)
 ```bash
-pip install tox
+pipenv install --dev
+pre-commit install
 ```
 
-Run the tests:
+## Run lint/tests
+
 ```bash
-tox
+pre-commit run --all-files
+pytest .
 ```
 
 ## Credits:
@@ -30,7 +34,7 @@ If you have a problem with your specific router open an issue, but please add as
 
 ## Bugs
 You can always create an issue in this tracker.
-To test and give us the information needed you could run:
+To test and give us the information needed you should run:
 ```python
 #!/usr/bin/env python
 import asyncio
@@ -68,6 +72,4 @@ loop = asyncio.get_event_loop()
 
 loop.run_until_complete(print_data())
 loop.close()
-
 ```
-Coffeefund: 1Huz6vNN6drX3Fq1sU98wPqNSdMPvkMBJG
