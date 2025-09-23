@@ -52,22 +52,23 @@ logger = logging.getLogger(__name__)
 
 
 async def print_data():
-    logger.debug("wl")
-    logger.debug(await component.connection.async_run_command('for dev in `nvram get wl_ifnames`; do wl -i $dev assoclist; done'))
-    dev = await component.async_get_wl()
-    logger.debug(dev)
-    logger.debug("arp")
-    logger.debug(await component.connection.async_run_command('arp -n'))
-    dev.update(await component.async_get_arp())
-    logger.debug(dev)
-    logger.debug("neigh")
-    logger.debug(await component.connection.async_run_command('ip neigh'))
+    dev = {}
+    await component.async_get_wl(dev)
+    await component.async_get_arp(dev)
     dev.update(await component.async_get_neigh(dev))
-    logger.debug(dev)
-    logger.debug("leases")
-    logger.debug(await component.connection.async_run_command('cat /var/lib/misc/dnsmasq.leases'))
     dev.update(await component.async_get_leases(dev))
-    logger.debug(dev)
+    dev.update(await component.async_filter_dev_list(dev))
+    await component.async_get_connected_devices(dev)
+    __import__("pprint").pprint(dev)
+
+    i = 0
+    while True:
+        print(await component.async_current_transfer_human_readable())
+        await asyncio.sleep(10)
+        i += 1
+        if i > 6:
+            break
+
 
 
 loop = asyncio.get_event_loop()
