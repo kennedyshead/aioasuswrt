@@ -73,7 +73,7 @@ class _BaseConnection(abc.ABC):
         await self._async_connect()
 
     async def async_disconnect(self) -> None:
-        """Disconnects the client"""
+        """Disconnect the client."""
         async with self._io_lock:
             self._disconnect()
 
@@ -104,6 +104,7 @@ def create_connection(
     password: Optional[str],
     ssh_key: Optional[str],
 ) -> _BaseConnection:
+    """Create a connection to the router."""
     if use_telnet:
         return TelnetConnection(
             host=host, port=port, username=username, password=password
@@ -124,16 +125,18 @@ class SshConnection(_BaseConnection):
     def __init__(
         self,
         host: str,
-        port: Optional[int],
-        username: Optional[str],
-        password: Optional[str],
-        ssh_key: Optional[str],
+        port: Optional[int] = None,
+        username: Optional[str] = None,
+        password: Optional[str] = None,
+        ssh_key: Optional[str] = None,
+        passphrase: Optional[str] = None,
     ):
         """Initialize the SSH connection properties."""
         super().__init__(host, port or 22, username, password)
         self._ssh_key = ssh_key
-        self._client = None
+        self._client: Optional[asyncssh] = None
         self._lock = asyncio.Lock()
+        self._passphrase: Optional[str] = passphrase
 
     async def _async_call_command(self, command: str) -> List[str]:
         """
@@ -158,12 +161,13 @@ class SshConnection(_BaseConnection):
         return self._client is not None
 
     async def _async_connect(self) -> None:
-        """Fetches the client or creates a new one."""
+        """Fetch the client or creates a new one."""
         kwargs = {
-            "username": self._username if self._username else None,
+            "username": self._username,
             "client_keys": [self._ssh_key] if self._ssh_key else None,
             "port": self._port,
-            "password": self._password if self._password else None,
+            "password": self._password,
+            "passphrase": self._passphrase,
             "known_hosts": None,
             "server_host_key_algs": [
                 "ssh-rsa",
