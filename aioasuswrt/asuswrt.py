@@ -4,7 +4,6 @@ import json
 import logging
 import re
 from collections import namedtuple
-from datetime import UTC, datetime
 from typing import Any, Dict, Iterable, List, Optional, Pattern, Tuple, Union
 
 from aioasuswrt.connection import create_connection
@@ -281,7 +280,6 @@ class AsusWrt:
     def __init__(
         self,
         host: str,
-        away_timeout: int = 180,
         port: Optional[int] = None,
         use_telnet: bool = False,
         username: Optional[str] = None,
@@ -302,10 +300,8 @@ class AsusWrt:
             None,
             None,
         ]
-        self._list_wired: Dict[str, datetime] = {}
         self.interface = interface
         self.dnsmasq = dnsmasq
-        self._away_timeout: int = away_timeout
 
         self.connection = create_connection(
             use_telnet, host, port, username, password, ssh_key
@@ -432,26 +428,6 @@ class AsusWrt:
                     mac = dev_mac.upper()
                     if mac in cur_devices:
                         devices[mac] = cur_devices[mac]
-
-        # Delay 180 seconds removal of previously detected wired devices.
-        # This is to avoid continuous add and remove in some circumstance
-        # with devices connected via additional hub.
-        cur_time = datetime.now(UTC)
-        for dev_mac, dev_data in list_wired.items():
-            if dev_data.get("ip"):
-                mac = dev_mac.upper()
-                self._list_wired[mac] = cur_time
-
-        pop_list = []
-        for dev_mac, last_seen in self._list_wired.items():
-            if (cur_time - last_seen).total_seconds() <= self._away_timeout:
-                if dev_mac in cur_devices:
-                    devices[dev_mac] = cur_devices[dev_mac]
-            else:
-                pop_list.append(dev_mac)
-
-        for mac in pop_list:
-            self._list_wired.pop(mac)
 
         _LOGGER.debug(
             "There are %s devices found in clientlist.json", len(devices)
