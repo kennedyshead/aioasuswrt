@@ -324,10 +324,10 @@ WL_DATA = [
 ]
 
 WL_DEVICES = {
-    "01:02:03:04:06:08": Device(mac="01:02:03:04:06:08", ip=None, name=None),
-    "08:09:10:11:12:14": Device(mac="08:09:10:11:12:14", ip=None, name=None),
-    "08:09:10:11:12:15": Device(mac="08:09:10:11:12:15", ip=None, name=None),
-    "AB:CD:DE:AB:CD:EF": Device(mac="AB:CD:DE:AB:CD:EF", ip=None, name=None),
+    "01:02:03:04:06:08": Device("01:02:03:04:06:08"),
+    "08:09:10:11:12:14": Device("08:09:10:11:12:14"),
+    "08:09:10:11:12:15": Device("08:09:10:11:12:15"),
+    "AB:CD:DE:AB:CD:EF": Device("AB:CD:DE:AB:CD:EF"),
 }
 
 ARP_DATA = [
@@ -340,16 +340,16 @@ ARP_DATA = [
 
 ARP_DEVICES = {
     "01:02:03:04:06:08": Device(
-        mac="01:02:03:04:06:08", ip="123.123.123.125", name=None
+        "01:02:03:04:06:08", "123.123.123.125", interface="eth0"
     ),
     "08:09:10:11:12:14": Device(
-        mac="08:09:10:11:12:14", ip="123.123.123.126", name=None
+        "08:09:10:11:12:14", "123.123.123.126", interface="br0"
     ),
     "AB:CD:DE:AB:CD:EF": Device(
-        mac="AB:CD:DE:AB:CD:EF", ip="123.123.123.128", name=None
+        "AB:CD:DE:AB:CD:EF", "123.123.123.128", interface="br0"
     ),
     "00:25:90:12:2D:90": Device(
-        mac="00:25:90:12:2D:90", ip="172.16.10.2", name=None
+        "00:25:90:12:2D:90", "172.16.10.2", interface="br0"
     ),
 }
 
@@ -381,12 +381,9 @@ LEASES_DATA = [
 ]
 
 LEASES_DEVICES = {
-    "01:02:03:04:06:08": Device(
-        mac="01:02:03:04:06:08", ip="123.123.123.125", name="TV"
-    ),
-    "08:09:10:11:12:14": Device(
-        mac="08:09:10:11:12:14", ip="123.123.123.126", name=""
-    ),
+    "01:02:03:04:06:08": Device("01:02:03:04:06:08", "123.123.123.125", "TV"),
+    "08:09:10:11:12:14": Device("08:09:10:11:12:14", "123.123.123.126"),
+    "AB:CD:DE:AB:CD:EF": Device("AB:CD:DE:AB:CD:EF", "123.123.123.128"),
 }
 
 WAKE_DEVICES = {
@@ -403,31 +400,33 @@ WAKE_DEVICES = {
 
 WAKE_DEVICES_AP = {
     "01:02:03:04:06:08": Device(
-        mac="01:02:03:04:06:08", ip="123.123.123.125", name=None
+        "01:02:03:04:06:08", "123.123.123.125", interface="eth0"
     ),
     "08:09:10:11:12:14": Device(
-        mac="08:09:10:11:12:14", ip="123.123.123.126", name=None
+        "08:09:10:11:12:14", "123.123.123.126", interface="br0"
     ),
     "AB:CD:DE:AB:CD:EF": Device(
-        mac="AB:CD:DE:AB:CD:EF", ip="123.123.123.128", name=None
+        "AB:CD:DE:AB:CD:EF", "123.123.123.128", interface="br0"
     ),
     "00:25:90:12:2D:90": Device(
-        mac="00:25:90:12:2D:90", ip="172.16.10.2", name=None
+        "00:25:90:12:2D:90", "172.16.10.2", interface="br0"
     ),
 }
 
 WAKE_DEVICES_NO_IP = {
     "01:02:03:04:06:08": Device(
-        mac="01:02:03:04:06:08", ip="123.123.123.125", name=None
+        "01:02:03:04:06:08", "123.123.123.125", interface="eth0"
     ),
     "08:09:10:11:12:14": Device(
-        mac="08:09:10:11:12:14", ip="123.123.123.126", name=None
+        "08:09:10:11:12:14", "123.123.123.126", interface="br0"
     ),
-    "08:09:10:11:12:15": Device(mac="08:09:10:11:12:15", ip=None, name=None),
+    "08:09:10:11:12:15": Device(
+        "08:09:10:11:12:15",
+    ),
     "AB:CD:DE:AB:CD:EF": Device(
-        mac="AB:CD:DE:AB:CD:EF", ip="123.123.123.128", name=None
+        "AB:CD:DE:AB:CD:EF", "123.123.123.128", interface="br0"
     ),
     "00:25:90:12:2D:90": Device(
-        mac="00:25:90:12:2D:90", ip="172.16.10.2", name=None
+        "00:25:90:12:2D:90", "172.16.10.2", interface="br0"
     ),
 }

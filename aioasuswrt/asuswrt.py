@@ -48,14 +48,15 @@ _IP_NEIGH_REGEX: Pattern[str] = re.compile(
 )
 
 _ARP_CMD: str = "arp -n"
-_ARP_REGEX: Pattern[str] = re.compile(
+_ARP_REGEX = re.compile(
     r".+\s"
     r"\((?P<ip>([0-9]{1,3}[\.]){3}[0-9]{1,3})\)\s"
     r".+\s"
     r"(?P<mac>(([0-9a-fA-F]{2}[:-]){5}([0-9a-fA-F]{2})))"
-    r"\s"
-    r".*"
+    r".+\s"
+    r"(?P<interface>([\w+]+.$))"
 )
+
 
 _RX_COMMAND: str = "cat /sys/class/net/{}/statistics/rx_bytes"
 _TX_COMMAND: str = "cat /sys/class/net/{}/statistics/tx_bytes"
@@ -252,7 +253,130 @@ GET_LIST: Dict[str, List[str]] = {
     + [f"vpn_client{i + 1}_state" for i in range(_VPN_AMOUNT)],
 }
 
-Device = namedtuple("Device", ["mac", "ip", "name"])
+
+class Device:
+    def __init__(
+        self,
+        mac: str,
+        ip: Optional[str] = None,
+        name: Optional[str] = None,
+        rssi: Optional[int] = None,
+        interface: Optional[str] = None,
+        interface_name: Optional[str] = None,
+        interface_mac: Optional[str] = None,
+    ) -> None:
+        """Class to map the devices."""
+        self._mac: str = mac
+        self._ip: Optional[str] = ip
+        self._name: Optional[str] = name
+        self._rssi: Optional[int] = rssi
+        self._interface: Optional[str] = interface
+        self._interface_name: Optional[str] = interface_name
+        self._interface_mac: Optional[str] = interface_mac
+
+    @property
+    def mac(self) -> str:
+        """mac property."""
+        return self._mac
+
+    @property
+    def ip(self) -> Optional[str]:
+        """ip property."""
+        return self._ip
+
+    @ip.setter
+    def ip(self, ip: str) -> None:
+        """ip setter."""
+        self._ip = ip
+
+    @property
+    def interface(self) -> Optional[str]:
+        """ip property."""
+        return self._interface
+
+    @interface.setter
+    def interface(self, interface: str) -> None:
+        """ip setter."""
+        self._interface = interface.strip("\r\n")
+
+    @property
+    def name(self) -> Optional[str]:
+        """ip property."""
+        return self._name
+
+    @name.setter
+    def name(self, host: str) -> None:
+        """ip setter."""
+        self._name = host
+
+    @property
+    def rssi(self) -> Optional[int]:
+        """rssi property."""
+        return self._rssi
+
+    @rssi.setter
+    def rssi(self, rssi: int) -> None:
+        """rssi setter."""
+        self._rssi = rssi
+
+    @property
+    def interface_name(self) -> Optional[str]:
+        """rssi property."""
+        return self._interface_name
+
+    @interface_name.setter
+    def interface_name(self, interface_name: str) -> None:
+        """rssi setter."""
+        self._interface_name = interface_name
+
+    @property
+    def interface_mac(self) -> Optional[str]:
+        """rssi property."""
+        return self._interface_mac
+
+    @interface_mac.setter
+    def interface_mac(self, interface_mac: str) -> None:
+        """rssi setter."""
+        self._interface_mac = interface_mac
+
+    def __repr__(self) -> str:
+        """Representation of the device"""
+
+        return str(
+            {
+                "mac": self.mac,
+                "ip": self.ip,
+                "name": self.name,
+                "rssi": self.rssi,
+                "interface": self.interface,
+                "interface_name": self.interface_name,
+                "interface_mac": self.interface_mac,
+            }
+        )
+
+    def to_tuple(self) -> Any:
+        """Returns Device as a named tuple."""
+        Device = namedtuple(
+            "Device",
+            (
+                "mac",
+                "ip",
+                "name",
+                "rssi",
+                "interface",
+                "interface_name",
+                "interface_mac",
+            ),
+        )
+        return Device(
+            self.mac,
+            self.ip,
+            self.name,
+            self.rssi,
+            self.interface,
+            self.interface_name,
+            self.interface_mac,
+        )
 
 
 async def _parse_lines(
@@ -327,112 +451,117 @@ class AsusWrt:
                     break
         return data
 
-    async def async_get_wl(self) -> Dict[str, Device]:
+    async def async_get_wl(self, devices: Dict[str, Device]) -> None:
         """Get wl."""
+        _LOGGER.info("async_get_wl")
         lines = await self.connection.async_run_command(_WL_CMD)
         if not lines:
-            return {}
+            return
         result = await _parse_lines(lines, _WL_REGEX)
-        devices = {}
         for device in result:
             mac = device["mac"].upper()
-            devices[mac] = Device(mac, None, None)
-        _LOGGER.debug("There are %s devices found in wl", len(devices))
-        return devices
+            devices[mac] = Device(mac)
+        _LOGGER.info("There are %s devices found in wl", len(devices))
 
-    async def async_get_leases(
-        self, cur_devices: Dict[str, Device]
-    ) -> Dict[str, Device]:
+    async def async_get_arp(self, devices: Dict[str, Device]) -> None:
+        """Get arp."""
+        _LOGGER.info("async_get_arp")
+        lines = await self.connection.async_run_command(_ARP_CMD)
+        if not lines:
+            return
+        result = await _parse_lines(lines, _ARP_REGEX)
+        for device in result:
+            if device["mac"] is not None:
+                mac = device["mac"].upper()
+                if mac not in devices:
+                    devices[mac] = Device(mac)
+                devices[mac].ip = device["ip"]
+                devices[mac].interface = device["interface"]
+
+        _LOGGER.info("There are %s devices found in arp", len(devices))
+
+    async def async_get_leases(self, devices: Dict[str, Device]) -> None:
         """Get leases."""
+        _LOGGER.info("async_get_leases")
         lines = await self.connection.async_run_command(
             _LEASES_CMD.format(self.dnsmasq)
         )
         if not lines:
-            return {}
+            return
         lines = [line for line in lines if not line.startswith("duid ")]
         result = await _parse_lines(lines, _LEASES_REGEX)
-        devices = {}
         for device in result:
-            # For leases where the client doesn't set a hostname, ensure it
-            # is blank and not '*', which breaks entity_id down the line.
-            host = device["host"]
-            if host == "*":
-                host = ""
+            host = device["host"] if device["host"] != "*" else None
             mac = device["mac"].upper()
-            if mac in cur_devices:
-                devices[mac] = Device(mac, device["ip"], host)
-        _LOGGER.debug("There are %s devices found in leases", len(devices))
-        return devices
+            if mac not in devices:
+                # There can be values that are not connected here IIRC
+                _LOGGER.debug(
+                    "Skipping %s its not already in the device list, "
+                    "meaning its not currently precent",
+                    mac,
+                )
+                continue
+            devices[mac].ip = device["ip"]
+            if host:
+                devices[mac].name = host
 
-    async def async_get_neigh(
-        self, cur_devices: Dict[str, Device]
-    ) -> Dict[str, Device]:
+        _LOGGER.info("There are %s devices found in leases", len(devices))
+
+    async def async_get_neigh(self, devices: Dict[str, Device]) -> None:
         """Get neigh."""
+        _LOGGER.info("async_get_neigh")
         lines = await self.connection.async_run_command(_IP_NEIGH_CMD)
         if not lines:
-            return {}
+            return
         result = await _parse_lines(lines, _IP_NEIGH_REGEX)
-        devices = {}
+
         for device in result:
             status = device["status"]
             if status is None or status.upper() != "REACHABLE":
                 continue
             if device["mac"] is not None:
                 mac = device["mac"].upper()
-                old_device = cur_devices.get(mac)
-                old_ip = old_device.ip if old_device else None
-                devices[mac] = Device(mac, device.get("ip", old_ip), None)
-        _LOGGER.debug("There are %s devices found in neigh", len(devices))
-        return devices
+                if mac not in devices:
+                    devices[mac] = Device(mac)
+                ip = device.get("ip")
+                if ip:
+                    devices[mac].ip = ip
+        _LOGGER.info("There are %s devices found in neigh", len(devices))
 
-    async def async_get_arp(self) -> Dict[str, Device]:
-        """Get arp."""
-        lines = await self.connection.async_run_command(_ARP_CMD)
-        if not lines:
-            return {}
-        result = await _parse_lines(lines, _ARP_REGEX)
-        devices = {}
-        for device in result:
-            if device["mac"] is not None:
-                mac = device["mac"].upper()
-                devices[mac] = Device(mac, device["ip"], None)
-        _LOGGER.debug("There are %s devices found in arp", len(devices))
-        return devices
-
-    async def async_filter_dev_list(
-        self, cur_devices: Dict[str, Device]
-    ) -> Dict[str, Device]:
+    async def async_filter_dev_list(self, devices: Dict[str, Device]) -> None:
         """Filter devices list using 'clientlist.json' files if available."""
+        _LOGGER.info("async_filter_dev_list")
         lines = await self.connection.async_run_command(_CLIENTLIST_CMD)
         if not lines:
-            return cur_devices
+            return
 
         try:
             dev_list = json.loads(lines[0])
         except (TypeError, ValueError):
             _LOGGER.info("Unable to parse clientlist.json")
             _LOGGER.debug(lines[0])
-            return cur_devices
-
-        devices = {}
-        list_wired = {}
+            return
 
         # parse client list
-        for interface_mac in dev_list.values():
-            for conn_type, conn_items in interface_mac.items():
-                if conn_type == "wired_mac":
-                    _LOGGER.debug("Found these wired devices: %s", conn_items)
-                    list_wired.update(conn_items)
-                    continue
+        for interface_mac, interface in dev_list.items():
+            for conn_type, conn_items in interface.items():
                 for dev_mac in conn_items:
                     mac = dev_mac.upper()
-                    if mac in cur_devices:
-                        devices[mac] = cur_devices[mac]
+                    device = conn_items[mac]
+                    ip = device.get("ip")
+                    rssi = device.get("rssi")
+                    if mac not in devices:
+                        devices[mac] = Device(mac)
+                    if ip:
+                        devices[mac].ip = ip
+                    if rssi:
+                        devices[mac].rssi = rssi
+                    devices[mac].interface_name = conn_type
+                    devices[mac].interface_mac = interface_mac
 
         _LOGGER.debug(
-            "There are %s devices found in clientlist.json", len(devices)
+            "There are %s devices found after clientlist.json", len(devices)
         )
-        return devices
 
     async def async_get_connected_devices(
         self,
@@ -444,20 +573,21 @@ class AsusWrt:
         responses. Some commands will not work on some routers.
         """
         devices: Dict[str, Device] = {}
-        dev = await self.async_get_wl()
-        merge_devices(devices, dev)
-        dev = await self.async_get_arp()
-        merge_devices(devices, dev)
-        dev = await self.async_get_neigh(devices)
-        merge_devices(devices, dev)
+        await self.async_get_wl(devices)
+        _LOGGER.debug(devices)
+        await self.async_get_arp(devices)
+        _LOGGER.debug(devices)
+        await self.async_get_neigh(devices)
+        _LOGGER.debug(devices)
         if not self.mode == "ap":
-            dev = await self.async_get_leases(devices)
-            merge_devices(devices, dev)
+            await self.async_get_leases(devices)
+            _LOGGER.debug(devices)
 
-        filter_devices = await self.async_filter_dev_list(devices)
+        await self.async_filter_dev_list(devices)
+        _LOGGER.debug(devices)
         ret_devices = {
             key: dev
-            for key, dev in filter_devices.items()
+            for key, dev in devices.items()
             if not self.require_ip or dev.ip is not None
         }
 
@@ -631,35 +761,3 @@ class AsusWrt:
     def is_connected(self) -> bool:
         """Is connected property."""
         return self.connection.is_connected
-
-
-def merge_devices(
-    devices: Dict[str, Device], new_devices: Dict[str, Device]
-) -> None:
-    """
-    Merge a new list of devices into an existing list.
-
-    This merge fills in any null values in the base list if the device
-    in the new list has values for them."""
-    for mac, device in new_devices.items():
-        if mac not in devices:
-            devices[mac] = device
-        elif any(val is None for val in devices[mac]):
-            mismatches = [
-                f"{Device._fields[field]}({val1} != {val2})"
-                for field, (val1, val2) in enumerate(zip(devices[mac], device))
-                if val1 and val2 and val1 != val2
-            ]
-            if mismatches:
-                # if filled values do not match between
-                # devices from found from different sources
-                # then something is wrong. Log a warning and carry on.
-                _LOGGER.warning(
-                    "Mismatched values for device {}: {}".format(
-                        mac, ", ".join(mismatches)
-                    )
-                )
-            else:
-                devices[mac] = Device(
-                    *(val1 or val2 for val1, val2 in zip(devices[mac], device))
-                )

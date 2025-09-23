@@ -1,5 +1,7 @@
 Version 1.5.0
-* Added parameter to set device timeout
+* Added rssi, interface, interface_name, interface_mac
+* Refactored get devices to be able to keep a live list through the run
+* Removed the timout for devices, this should be handled elsewhere
 * Remove all cache
 * Remove broken transfer rates
 * Rewrite of disconnect/connect logic @kennedyshead

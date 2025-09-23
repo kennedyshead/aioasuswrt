@@ -25,7 +25,7 @@ from .test_data import (
 )
 
 
-def mock_run_cmd(mocker, values):
+def mock_run_cmd(mocker, values) -> None:
     iter = 0
 
     async def patch_func(command, *args, **kwargs):
@@ -49,59 +49,76 @@ def mock_run_cmd(mocker, values):
 
 
 @pytest.mark.asyncio
-async def test_get_wl(mocker):
+async def test_get_wl(mocker) -> None:
     """Testing wl."""
     mock_run_cmd(mocker, [WL_DATA])
     scanner = AsusWrt(host="localhost", port=22)
-    devices = await scanner.async_get_wl()
-    assert WL_DEVICES == devices
+    devices = {}
+    await scanner.async_get_wl(devices)
+    assert WL_DEVICES.keys() == devices.keys()
+    values = [value.to_tuple() for value in devices.values()]
+    compare_values = [value.to_tuple() for value in WL_DEVICES.values()]
+    assert values == compare_values
 
 
 @pytest.mark.asyncio
-async def test_get_wl_empty(mocker):
+async def test_get_wl_empty(mocker) -> None:
     """Testing wl."""
     mock_run_cmd(mocker, [""])
     scanner = AsusWrt(host="localhost", port=22)
-    devices = await scanner.async_get_wl()
+    devices = {}
+    await scanner.async_get_wl(devices)
     assert {} == devices
 
 
 @pytest.mark.asyncio
-async def test_async_get_leases(mocker):
+async def test_async_get_leases(mocker) -> None:
     """Testing leases."""
     mock_run_cmd(mocker, [LEASES_DATA])
     scanner = AsusWrt(host="localhost", port=22)
-    data = await scanner.async_get_leases(NEIGH_DEVICES.copy())
-    assert LEASES_DEVICES == data
+    devices = NEIGH_DEVICES.copy()
+    await scanner.async_get_leases(devices)
+    assert LEASES_DEVICES.keys() == devices.keys()
+    values = [value.to_tuple() for value in devices.values()]
+    compare_values = [value.to_tuple() for value in LEASES_DEVICES.values()]
+    assert values == compare_values
 
 
 @pytest.mark.asyncio
-async def test_get_arp(mocker):
+async def test_get_arp(mocker) -> None:
     """Testing arp."""
     mock_run_cmd(mocker, [ARP_DATA])
     scanner = AsusWrt(host="localhost", port=22)
-    data = await scanner.async_get_arp()
-    assert ARP_DEVICES == data
+    devices = {}
+    await scanner.async_get_arp(devices)
+    assert ARP_DEVICES.keys() == devices.keys()
+    values = [value.to_tuple() for value in devices.values()]
+    compare_values = [value.to_tuple() for value in ARP_DEVICES.values()]
+    assert values == compare_values
 
 
 @pytest.mark.asyncio
-async def test_get_neigh(mocker):
+async def test_get_neigh(mocker) -> None:
     """Testing neigh."""
     mock_run_cmd(mocker, [NEIGH_DATA])
     scanner = AsusWrt(host="localhost", port=22)
-    data = await scanner.async_get_neigh(NEIGH_DEVICES.copy())
-    assert NEIGH_DEVICES == data
+    devices = NEIGH_DEVICES.copy()
+    await scanner.async_get_neigh(devices)
+    assert NEIGH_DEVICES == devices
 
 
 @pytest.mark.asyncio
-async def test_get_connected_devices_ap(mocker):
+async def test_get_connected_devices_ap(mocker) -> None:
     """Test for get asuswrt_data in ap mode."""
     # Note, unfortunately the order of data is important and should be the
     # same as in the `async_get_connected_devices` function.
     mock_run_cmd(mocker, [WL_DATA, ARP_DATA, NEIGH_DATA, LEASES_DATA])
     scanner = AsusWrt(host="localhost", port=22, mode="ap", require_ip=True)
-    data = await scanner.async_get_connected_devices()
-    assert WAKE_DEVICES_AP == data
+    devices = await scanner.async_get_connected_devices()
+    assert WAKE_DEVICES_AP.keys() == devices.keys()
+    values = [value.to_tuple() for value in devices.values()]
+    compare_values = [value.to_tuple() for value in WAKE_DEVICES_AP.values()]
+    assert values == compare_values
 
 
 @pytest.mark.asyncio
@@ -109,8 +126,13 @@ async def test_get_connected_devices_no_ip(mocker):
     """Test for get asuswrt_data and not requiring ip."""
     mock_run_cmd(mocker, [WL_DATA, ARP_DATA, NEIGH_DATA, LEASES_DATA])
     scanner = AsusWrt(host="localhost", port=22, mode="ap", require_ip=False)
-    data = await scanner.async_get_connected_devices()
-    assert WAKE_DEVICES_NO_IP == data
+    devices = await scanner.async_get_connected_devices()
+    assert WAKE_DEVICES_NO_IP.keys() == devices.keys()
+    values = [value.to_tuple() for value in devices.values()]
+    compare_values = [
+        value.to_tuple() for value in WAKE_DEVICES_NO_IP.values()
+    ]
+    assert values == compare_values
 
 
 @pytest.mark.asyncio
