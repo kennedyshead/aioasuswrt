@@ -12,12 +12,8 @@ from .test_data import (
     NEIGH_DATA,
     NEIGH_DEVICES,
     NETDEV_DATA,
-    RX,
-    RX_DATA,
     TEMP_DATA,
     TEMP_DATA_2ND,
-    TX,
-    TX_DATA,
     WAKE_DEVICES_AP,
     WAKE_DEVICES_NO_IP,
     WL_DATA,
@@ -133,17 +129,6 @@ async def test_get_connected_devices_no_ip(mocker):
         value.to_tuple() for value in WAKE_DEVICES_NO_IP.values()
     ]
     assert values == compare_values
-
-
-@pytest.mark.asyncio
-async def test_get_packets_total(mocker):
-    """Test getting packet totals."""
-    mock_run_cmd(mocker, [TX_DATA, RX_DATA])
-    scanner = AsusWrt(host="localhost", port=22, mode="ap", require_ip=False)
-    data = await scanner.async_get_tx()
-    assert TX == data
-    data = await scanner.async_get_rx()
-    assert RX == data
 
 
 @pytest.mark.asyncio

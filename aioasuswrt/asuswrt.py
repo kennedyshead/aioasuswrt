@@ -4,9 +4,10 @@ import json
 import logging
 import re
 from collections import namedtuple
+from time import time
 from typing import Any, Dict, Iterable, List, Optional, Pattern, Tuple, Union
 
-from aioasuswrt.connection import create_connection
+from aioasuswrt.connection import _BaseConnection, create_connection
 from aioasuswrt.helpers import convert_size
 
 _LOGGER = logging.getLogger(__name__)
@@ -417,17 +418,16 @@ class AsusWrt:
         """Init function."""
         self.require_ip = require_ip
         self.mode = mode
-        self._rx_latest: Optional[float] = None
-        self._tx_latest: Optional[float] = None
         self._temps_commands: List[Optional[Dict[str, Union[str, int]]]] = [
             None,
             None,
             None,
         ]
-        self.interface = interface
-        self.dnsmasq = dnsmasq
-
-        self.connection = create_connection(
+        self.dnsmasq: str = dnsmasq
+        self._previous_rx: int = 0
+        self._previous_tx: int = 0
+        self._last_transaction_run: float = time()
+        self.connection: _BaseConnection = create_connection(
             use_telnet, host, port, username, password, ssh_key
         )
 
@@ -602,29 +602,55 @@ class AsusWrt:
         )
         return 0, 0
 
-    async def async_get_rx(self) -> Optional[float]:
+    async def async_get_rx(self) -> int:
         """Get current RX total given in bytes."""
-        data = await self.connection.async_run_command(
-            _RX_COMMAND.format(self.interface)
-        )
-        return float(data[0]) if data[0] != "" else None
+        return self._previous_rx
 
-    async def async_get_tx(self) -> Optional[float]:
+    async def async_get_tx(self) -> int:
         """Get current RX total given in bytes."""
-        data = await self.connection.async_run_command(
-            _TX_COMMAND.format(self.interface)
-        )
-        return float(data[0]) if data[0] != "" else None
+        return self._previous_tx
 
     async def async_get_current_transfer_rates(
         self,
     ) -> Tuple[float, float]:
         """Get current transfer rates calculated in per second in bytes."""
-        _LOGGER.warning(
-            "async_get_currenttransfer_rates is deprecated, "
-            "calculate this elsewhere"
-        )
-        return 0, 0
+        _now = time()
+        delay = _now - self._last_transaction_run
+        self._last_transaction_run = _now
+        eth0rx = eth0tx = 0
+        vlanrx = vlantx = 0
+
+        net_dev_lines = await self.connection.async_run_command(_NETDEV_CMD)
+        if not net_dev_lines:
+            _LOGGER.info("Unable to run %s", _NETDEV_CMD)
+            return 0, 0
+
+        for line in net_dev_lines[2:]:
+            parts = re.split(r"[\s:]+", line.strip())
+            # NOTES:
+            #  * assuming eth0 always comes before vlan1 in dev file
+            #  * counted bytes wrap around at 0xFFFFFFFF
+            if parts[0] == "eth0":
+                eth0rx = int(parts[1])  # received bytes
+                eth0tx = int(parts[9])  # transmitted bytes
+            elif parts[0] == "vlan1":
+                vlanrx = int(parts[1])  # received bytes
+                vlantx = int(parts[9])  # transmitted bytes
+
+        def handle32bitwrap(v: int) -> int:
+            return v if v > 0 else v + 0xFFFFFFFF
+
+        # the true amount of Internet related data equals eth0 - vlan1
+        inetrx = handle32bitwrap(eth0rx - vlanrx)
+        inettx = handle32bitwrap(eth0tx - vlantx)
+
+        rx = int(handle32bitwrap(inetrx - self._previous_rx) / delay)
+        tx = int(handle32bitwrap(inettx - self._previous_tx) / delay)
+
+        self._previous_rx = inetrx
+        self._previous_tx = inettx
+
+        return rx, tx
 
     async def async_current_transfer_human_readable(
         self,
@@ -632,8 +658,9 @@ class AsusWrt:
         """Get current transfer rates in a human readable format."""
         rx, tx = await self.async_get_current_transfer_rates()
 
-        if rx is not None and tx is not None:
+        if rx is not None and rx > 0 and tx is not None and tx > 0:
             return "%s/s" % convert_size(rx), "%s/s" % convert_size(tx)
+        return "0/s", "0/s"
 
     async def async_get_loadavg(self) -> List[float]:
         """Get loadavg."""

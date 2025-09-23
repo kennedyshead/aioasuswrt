@@ -1,4 +1,5 @@
 Version 1.5.0
+* More accurate rx/tx a big thanks to @tempura-san
 * Added rssi, interface, interface_name, interface_mac
 * Refactored get devices to be able to keep a live list through the run
 * Removed the timout for devices, this should be handled elsewhere
