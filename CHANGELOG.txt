@@ -1,7 +1,15 @@
 Version 1.5.0
-* Modernize python build
-* Typing
-* Adding pre-commit linting
+* Added parameter to set device timeout
+* Remove all cache
+* Remove broken transfer rates
+* Rewrite of disconnect/connect logic @kennedyshead
+* Modernize python build @kennedyshead
+* Typing @kennedyshead
+* Adding pre-commit linting @kennedyshead
+* Adding new secure connection algorithms to fix certificate based authentication on new Asus WRT firmware (3006) @321Kami
+* Add function to list/start/stop a vpn @zerataxz
+* Fix connection leak and add Coroutine-Safety @danielskowronski
+
 
 Version 1.4.0
 * Fix UnicodeDecodeError error on Telnet connection @ollo69

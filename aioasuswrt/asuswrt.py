@@ -2,7 +2,6 @@
 
 import json
 import logging
-import math
 import re
 from collections import namedtuple
 from datetime import UTC, datetime
@@ -12,8 +11,6 @@ from aioasuswrt.connection import create_connection
 from aioasuswrt.helpers import convert_size
 
 _LOGGER = logging.getLogger(__name__)
-
-CHANGE_TIME_CACHE_DEFAULT: int = 5  # Default 5s
 
 _LEASES_CMD: str = "cat {}/dnsmasq.leases"
 _LEASES_REGEX: Pattern[str] = re.compile(
@@ -284,6 +281,7 @@ class AsusWrt:
     def __init__(
         self,
         host: str,
+        away_timeout: int = 180,
         port: Optional[int] = None,
         use_telnet: bool = False,
         username: Optional[str] = None,
@@ -291,7 +289,6 @@ class AsusWrt:
         ssh_key: Optional[str] = None,
         mode: str = "router",
         require_ip: bool = False,
-        time_cache: int = CHANGE_TIME_CACHE_DEFAULT,
         interface: str = "eth0",
         dnsmasq: str = "/var/lib/misc",
     ) -> None:
@@ -300,15 +297,6 @@ class AsusWrt:
         self.mode = mode
         self._rx_latest: Optional[float] = None
         self._tx_latest: Optional[float] = None
-        self._latest_transfer_check: Optional[datetime] = None
-        self._cache_time = time_cache
-        self._trans_cache_timer = None
-        self._dev_cache_timer: Optional[datetime] = None
-        self._devices_cache: Optional[Dict[str, Device]] = None
-        self._transfer_rates_cache = None
-        self._latest_transfer_data = 0, 0
-        self._nvram_cache_timer: Optional[datetime] = None
-        self._nvram_cache: Optional[List[str]] = None
         self._temps_commands: List[Optional[Dict[str, Union[str, int]]]] = [
             None,
             None,
@@ -317,31 +305,19 @@ class AsusWrt:
         self._list_wired: Dict[str, datetime] = {}
         self.interface = interface
         self.dnsmasq = dnsmasq
+        self._away_timeout: int = away_timeout
 
         self.connection = create_connection(
             use_telnet, host, port, username, password, ssh_key
         )
 
-    async def async_get_nvram(
-        self, to_get: str, use_cache: bool = True
-    ) -> Dict[str, str]:
+    async def async_get_nvram(self, to_get: str) -> Dict[str, str]:
         """Get nvram."""
         data: Dict[str, str] = {}
         if to_get not in GET_LIST:
             return data
 
-        now = datetime.now(UTC)
-        if (
-            use_cache
-            and self._nvram_cache_timer
-            and self._cache_time
-            > (now - self._nvram_cache_timer).total_seconds()
-        ):
-            lines = self._nvram_cache
-        else:
-            lines = await self.connection.async_run_command(_NVRAM_CMD)
-            self._nvram_cache = lines
-            self._nvram_cache_timer = now
+        lines = await self.connection.async_run_command(_NVRAM_CMD)
         if not lines:
             _LOGGER.warning("No devices found in router")
             return data
@@ -365,6 +341,7 @@ class AsusWrt:
         for device in result:
             mac = device["mac"].upper()
             devices[mac] = Device(mac, None, None)
+        _LOGGER.debug("There are %s devices found in wl", len(devices))
         return devices
 
     async def async_get_leases(
@@ -388,6 +365,7 @@ class AsusWrt:
             mac = device["mac"].upper()
             if mac in cur_devices:
                 devices[mac] = Device(mac, device["ip"], host)
+        _LOGGER.debug("There are %s devices found in leases", len(devices))
         return devices
 
     async def async_get_neigh(
@@ -408,6 +386,7 @@ class AsusWrt:
                 old_device = cur_devices.get(mac)
                 old_ip = old_device.ip if old_device else None
                 devices[mac] = Device(mac, device.get("ip", old_ip), None)
+        _LOGGER.debug("There are %s devices found in neigh", len(devices))
         return devices
 
     async def async_get_arp(self) -> Dict[str, Device]:
@@ -421,6 +400,7 @@ class AsusWrt:
             if device["mac"] is not None:
                 mac = device["mac"].upper()
                 devices[mac] = Device(mac, device["ip"], None)
+        _LOGGER.debug("There are %s devices found in arp", len(devices))
         return devices
 
     async def async_filter_dev_list(
@@ -434,14 +414,18 @@ class AsusWrt:
         try:
             dev_list = json.loads(lines[0])
         except (TypeError, ValueError):
+            _LOGGER.info("Unable to parse clientlist.json")
+            _LOGGER.debug(lines[0])
             return cur_devices
 
         devices = {}
         list_wired = {}
+
         # parse client list
-        for if_mac in dev_list.values():
-            for conn_type, conn_items in if_mac.items():
+        for interface_mac in dev_list.values():
+            for conn_type, conn_items in interface_mac.items():
                 if conn_type == "wired_mac":
+                    _LOGGER.debug("Found these wired devices: %s", conn_items)
                     list_wired.update(conn_items)
                     continue
                 for dev_mac in conn_items:
@@ -460,7 +444,7 @@ class AsusWrt:
 
         pop_list = []
         for dev_mac, last_seen in self._list_wired.items():
-            if (cur_time - last_seen).total_seconds() <= 180:
+            if (cur_time - last_seen).total_seconds() <= self._away_timeout:
                 if dev_mac in cur_devices:
                     devices[dev_mac] = cur_devices[dev_mac]
             else:
@@ -469,10 +453,13 @@ class AsusWrt:
         for mac in pop_list:
             self._list_wired.pop(mac)
 
+        _LOGGER.debug(
+            "There are %s devices found in clientlist.json", len(devices)
+        )
         return devices
 
     async def async_get_connected_devices(
-        self, use_cache: bool = True
+        self,
     ) -> Dict[str, Device]:
         """
         Retrieve data from ASUSWRT.
@@ -480,16 +467,6 @@ class AsusWrt:
         Calls various commands on the router and returns the superset of all
         responses. Some commands will not work on some routers.
         """
-        now = datetime.now(UTC)
-        if (
-            use_cache
-            and self._devices_cache
-            and self._dev_cache_timer
-            and self._cache_time
-            > (now - self._dev_cache_timer).total_seconds()
-        ):
-            return self._devices_cache
-
         devices: Dict[str, Device] = {}
         dev = await self.async_get_wl()
         merge_devices(devices, dev)
@@ -508,26 +485,16 @@ class AsusWrt:
             if not self.require_ip or dev.ip is not None
         }
 
-        self._devices_cache = ret_devices
-        self._dev_cache_timer = now
         return ret_devices
 
     async def async_get_bytes_total(
-        self, use_cache: bool = True
+        self,
     ) -> Tuple[Optional[float], Optional[float]]:
         """Retrieve total bytes (rx an tx) from ASUSWRT."""
-        now = datetime.now(UTC)
-        if (
-            use_cache
-            and self._trans_cache_timer
-            and self._cache_time
-            > (now - self._trans_cache_timer).total_seconds()
-        ):
-            return self._transfer_rates_cache
-
-        rx = await self.async_get_rx()
-        tx = await self.async_get_tx()
-        return rx, tx
+        _LOGGER.warning(
+            "async_get_bytes_total is deprecated, calculate this elsewhere"
+        )
+        return 0, 0
 
     async def async_get_rx(self) -> Optional[float]:
         """Get current RX total given in bytes."""
@@ -544,48 +511,20 @@ class AsusWrt:
         return float(data[0]) if data[0] != "" else None
 
     async def async_get_current_transfer_rates(
-        self, use_cache: bool = True
+        self,
     ) -> Tuple[float, float]:
         """Get current transfer rates calculated in per second in bytes."""
-        now = datetime.now(UTC)
-        data = await self.async_get_bytes_total(use_cache)
-        if self._rx_latest is None or self._tx_latest is None:
-            self._latest_transfer_check = now
-            self._rx_latest = data[0]
-            self._tx_latest = data[1]
-            return self._latest_transfer_data
-
-        time_diff = now - (self._latest_transfer_check or now)
-        if time_diff.total_seconds() < 30:
-            return self._latest_transfer_data
-        if data[0] and self._rx_latest is not None:
-            if data[0] < self._rx_latest:
-                rx = data[0]
-            else:
-                rx = data[0] - self._rx_latest
-
-        if data[1] and self._tx_latest is not None:
-            if data[1] < self._tx_latest:
-                tx = data[1]
-            else:
-                tx = data[1] - self._tx_latest
-
-        self._latest_transfer_check = now
-
-        self._rx_latest = data[0]
-        self._tx_latest = data[1]
-
-        self._latest_transfer_data = (
-            math.ceil(rx / time_diff.total_seconds()) if rx > 0 else 0,
-            math.ceil(tx / time_diff.total_seconds()) if tx > 0 else 0,
+        _LOGGER.warning(
+            "async_get_currenttransfer_rates is deprecated, "
+            "calculate this elsewhere"
         )
-        return self._latest_transfer_data
+        return 0, 0
 
     async def async_current_transfer_human_readable(
-        self, use_cache: bool = True
+        self,
     ) -> Optional[tuple[str, str]]:
         """Get current transfer rates in a human readable format."""
-        rx, tx = await self.async_get_current_transfer_rates(use_cache)
+        rx, tx = await self.async_get_current_transfer_rates()
 
         if rx is not None and tx is not None:
             return "%s/s" % convert_size(rx), "%s/s" % convert_size(tx)
@@ -668,7 +607,7 @@ class AsusWrt:
 
     async def async_get_vpn_clients(self) -> List[Dict[str, str]]:
         """Get current vpn clients"""
-        data = await self.async_get_nvram("VPN", use_cache=False)
+        data = await self.async_get_nvram("VPN")
         vpn_list = data["vpnc_clientlist"]
 
         vpns = []
