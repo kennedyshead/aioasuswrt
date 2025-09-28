@@ -1,3 +1,8 @@
 """aioasuswrt package."""
 
-__version__ = "pre-1.5.0"
+from importlib.metadata import PackageNotFoundError, version
+
+try:
+    __version__ = version("aioasuswrt")
+except PackageNotFoundError:
+    __version__ = "dev"

@@ -1,5 +1,6 @@
 [project]
 name = "aioasuswrt"
+version = "1.5.0"
 description = "Api wrapper for Asuswrt https://www.asus.com/ASUSWRT/"
 readme = "README.md"
 requires-python = ">= 3.12"
@@ -28,7 +29,6 @@ classifiers = [
 dependencies = [
   "asyncssh",
 ]
-dynamic = ["version"]
 
 [project.urls]
 "Bug Tracker" = "https://github.com/kennedyshead/aioasuswrt/issues"
