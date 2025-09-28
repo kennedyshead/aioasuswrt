@@ -1,6 +1,6 @@
 # AioAsusWRT
 
-![Python package](https://github.com/kennedyshead/aioasuswrt/workflows/Python%20package/badge.svg)
+![Python package](https://github.com/kennedyshead/aioasuswrt/workflows/Python%20package/badge.svg) [![Upload Python Package](https://github.com/kennedyshead/aioasuswrt/actions/workflows/python-publish.yml/badge.svg)](https://github.com/kennedyshead/aioasuswrt/actions/workflows/python-publish.yml)
 
 Small wrapper for asuswrt.
 
