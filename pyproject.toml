@@ -38,7 +38,7 @@ Homepage = "https://github.com/kennedyshead/aioasuswrt"
 Repository = "https://github.com/kennedyshead/aioasuswrt.git"
 
 [build-system]
-requires = ["setuptools >= 77.0.3"]
+requires = ["setuptools >= 80.9.0"]
 build-backend = "setuptools.build_meta"
 
 [tool.bandit]
