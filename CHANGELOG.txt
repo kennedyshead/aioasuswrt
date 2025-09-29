@@ -1,10 +1,10 @@
 Version 1.5.0
-* More accurate rx/tx a big thanks to @tempura-san
-* Added rssi, interface, interface_name, interface_mac
-* Refactored get devices to be able to keep a live list through the run
-* Removed the timout for devices, this should be handled elsewhere
-* Remove all cache
-* Remove broken transfer rates
+* More accurate rx/tx a big thanks to @tempura-san @kennedyshead
+* Added rssi, interface, interface_name, interface_mac @kennedyshead
+* Refactored get devices to be able to keep a live list through the run @kennedyshead
+* Removed the timout for devices, this should be handled elsewhere @kennedyshead
+* Remove all cache @kennedyshead
+* Remove broken transfer rates @kennedyshead
 * Rewrite of disconnect/connect logic @kennedyshead
 * Modernize python build @kennedyshead
 * Typing @kennedyshead
