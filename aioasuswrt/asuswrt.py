@@ -35,6 +35,7 @@ _WL_REGEX: Pattern[str] = re.compile(
 _CLIENTLIST_CMD: str = "cat /tmp/clientlist.json"
 
 _NVRAM_CMD: str = "nvram show"
+_NVRAM_REGEX = r"^{<item>}=([\w.\-/: <>]+)"
 
 _IP_NEIGH_CMD: str = "ip neigh"
 _IP_NEIGH_REGEX: Pattern[str] = re.compile(
@@ -381,22 +382,24 @@ class Device:
 
 
 async def _parse_lines(
-    lines: List[str], regex: Pattern[str]
-) -> List[Dict[str, Union[str, Any]]]:
+    lines: Iterable[str], regex: Pattern[str]
+) -> Iterable[Dict[str, Union[str, Any]]]:
     """
     Parse the lines using the given regular expression.
 
     If a line can't be parsed it is logged and skipped in the output.
     """
-    results = []
-    for line in lines:
-        if line:
-            match = regex.search(line)
-            if not match:
-                _LOGGER.debug("Could not parse row: %s", line)
-                continue
-            results.append(match.groupdict())
-    return results
+
+    def _match(line: str) -> Optional[Dict[str, Union[str, Any]]]:
+        if not line:
+            return None
+        match = regex.search(line)
+        if not match:
+            _LOGGER.debug("Could not parse row: %s", line)
+            return None
+        return match.groupdict()
+
+    return filter(None, map(_match, lines))
 
 
 class AsusWrt:
@@ -443,7 +446,7 @@ class AsusWrt:
             return data
 
         for item in GET_LIST[to_get]:
-            regex = rf"^{item}=([\w.\-/: <>]+)"
+            regex = _NVRAM_REGEX.format(item)
             for line in lines:
                 result = re.findall(regex, line)
                 if result:
@@ -458,9 +461,12 @@ class AsusWrt:
         if not lines:
             return
         result = await _parse_lines(lines, _WL_REGEX)
-        for device in result:
+
+        def _handle(device: Dict[str, str]) -> None:
             mac = device["mac"].upper()
             devices[mac] = Device(mac)
+
+        list(map(_handle, result))
         _LOGGER.info("There are %s devices found in wl", len(devices))
 
     async def async_get_arp(self, devices: Dict[str, Device]) -> None:
@@ -470,7 +476,8 @@ class AsusWrt:
         if not lines:
             return
         result = await _parse_lines(lines, _ARP_REGEX)
-        for device in result:
+
+        def _handle(device: Dict[str, str]) -> None:
             if device["mac"] is not None:
                 mac = device["mac"].upper()
                 if mac not in devices:
@@ -478,33 +485,35 @@ class AsusWrt:
                 devices[mac].ip = device["ip"]
                 devices[mac].interface = device["interface"]
 
+        list(map(_handle, result))
         _LOGGER.info("There are %s devices found in arp", len(devices))
 
     async def async_get_leases(self, devices: Dict[str, Device]) -> None:
         """Get leases."""
         _LOGGER.info("async_get_leases")
-        lines = await self.connection.async_run_command(
+        lines: Iterable[str] = await self.connection.async_run_command(
             _LEASES_CMD.format(self.dnsmasq)
         )
         if not lines:
             return
-        lines = [line for line in lines if not line.startswith("duid ")]
+        lines = filter(lambda line: not line.startswith("duid "), lines)
         result = await _parse_lines(lines, _LEASES_REGEX)
-        for device in result:
+
+        def _handle(device: Dict[str, str]) -> None:
             host = device["host"] if device["host"] != "*" else None
             mac = device["mac"].upper()
             if mac not in devices:
-                # There can be values that are not connected here IIRC
                 _LOGGER.debug(
                     "Skipping %s its not already in the device list, "
                     "meaning its not currently precent",
                     mac,
                 )
-                continue
+                return
             devices[mac].ip = device["ip"]
             if host:
                 devices[mac].name = host
 
+        list(map(_handle, result))
         _LOGGER.info("There are %s devices found in leases", len(devices))
 
     async def async_get_neigh(self, devices: Dict[str, Device]) -> None:
@@ -515,17 +524,23 @@ class AsusWrt:
             return
         result = await _parse_lines(lines, _IP_NEIGH_REGEX)
 
-        for device in result:
+        def _handle(device: Dict[str, str]) -> None:
             status = device["status"]
-            if status is None or status.upper() != "REACHABLE":
-                continue
-            if device["mac"] is not None:
-                mac = device["mac"].upper()
-                if mac not in devices:
-                    devices[mac] = Device(mac)
-                ip = device.get("ip")
-                if ip:
-                    devices[mac].ip = ip
+            if (
+                status is None
+                or status
+                and status.upper() != "REACHABLE"
+                or device["mac"] is None
+            ):
+                return
+            mac = device["mac"].upper()
+            if mac not in devices:
+                devices[mac] = Device(mac)
+            ip = device.get("ip")
+            if ip:
+                devices[mac].ip = ip
+
+        list(map(_handle, result))
         _LOGGER.info("There are %s devices found in neigh", len(devices))
 
     async def async_filter_dev_list(self, devices: Dict[str, Device]) -> None:
@@ -585,13 +600,9 @@ class AsusWrt:
 
         await self.async_filter_dev_list(devices)
         _LOGGER.debug(devices)
-        ret_devices = {
-            key: dev
-            for key, dev in devices.items()
-            if not self.require_ip or dev.ip is not None
-        }
-
-        return ret_devices
+        if not self.require_ip:
+            return devices
+        return {key: dev for key, dev in devices.items() if dev.ip is not None}
 
     async def async_get_bytes_total(
         self,

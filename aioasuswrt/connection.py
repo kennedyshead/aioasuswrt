@@ -8,12 +8,12 @@ from asyncio.streams import StreamReader, StreamWriter
 from math import floor
 from typing import List, Optional
 
-import asyncssh
+from asyncssh import SSHClientConnection, connect, set_log_level
 
 _LOGGER = logging.getLogger(__name__)
 
 _PATH_EXPORT_COMMAND: str = "PATH=$PATH:/bin:/usr/sbin:/sbin"
-asyncssh.set_log_level("WARNING")
+set_log_level("WARNING")
 
 
 class _CommandException(Exception):
@@ -134,7 +134,7 @@ class SshConnection(_BaseConnection):
         """Initialize the SSH connection properties."""
         super().__init__(host, port or 22, username, password)
         self._ssh_key = ssh_key
-        self._client: Optional[asyncssh] = None
+        self._client: Optional[SSHClientConnection] = None
         self._lock = asyncio.Lock()
         self._passphrase: Optional[str] = passphrase
 
@@ -153,7 +153,7 @@ class SshConnection(_BaseConnection):
                 self._client.run("%s && %s" % (_PATH_EXPORT_COMMAND, command)),
                 9,
             )
-        return list(result.stdout.split("\n"))
+        return list(str(result.stdout).split("\n"))
 
     @property
     def is_connected(self) -> bool:
@@ -189,7 +189,7 @@ class SshConnection(_BaseConnection):
                 self._disconnect()
             else:
                 _LOGGER.debug("reconnecting; no old connection existed")
-            self._client = await asyncssh.connect(self._host, **kwargs)
+            self._client = await connect(self._host, **kwargs)
             _LOGGER.debug(
                 "reconnected; new connection has local port %d",
                 self._client._local_port if self._client else "Unknown",

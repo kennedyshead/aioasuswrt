@@ -106,8 +106,6 @@ async def test_get_neigh(mocker) -> None:
 @pytest.mark.asyncio
 async def test_get_connected_devices_ap(mocker) -> None:
     """Test for get asuswrt_data in ap mode."""
-    # Note, unfortunately the order of data is important and should be the
-    # same as in the `async_get_connected_devices` function.
     mock_run_cmd(mocker, [WL_DATA, ARP_DATA, NEIGH_DATA, LEASES_DATA])
     scanner = AsusWrt(host="localhost", port=22, mode="ap", require_ip=True)
     devices = await scanner.async_get_connected_devices()
