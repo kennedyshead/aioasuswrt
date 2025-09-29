@@ -788,3 +788,7 @@ class AsusWrt:
     def is_connected(self) -> bool:
         """Is connected property."""
         return self.connection.is_connected
+
+    async def async_disconnect(self) -> None:
+        """Disconnect from router."""
+        await self.connection.async_disconnect()
