@@ -336,6 +336,7 @@ ARP_DATA = [
     "? (123.123.123.128) at AB:CD:DE:AB:CD:EF [ether]  on br0\r",
     "? (123.123.123.127) at <incomplete>  on br0\r",
     "? (172.16.10.2) at 00:25:90:12:2D:90 [ether]  on br0\r",
+    "? (169.254.0.2) at a0:ad:9f:0f:03:d9 [ether]  on eth.ai-10\r",
 ]
 
 ARP_DEVICES = {
@@ -351,6 +352,9 @@ ARP_DEVICES = {
     "00:25:90:12:2D:90": Device(
         "00:25:90:12:2D:90", "172.16.10.2", interface="br0"
     ),
+    "a0:ad:9f:0f:03:d9": Device(
+        "a0:ad:9f:0f:03:d9", "169.254.0.2", interface="eth.ai-10"
+    ),
 }
 
 NEIGH_DATA = [
@@ -360,6 +364,7 @@ NEIGH_DATA = [
     "123.123.123.127 dev br0  FAILED\r",
     "123.123.123.129 dev br0 lladdr 08:09:15:15:15:15 DELAY\r",
     "fe80::feff:a6ff:feff:12ff dev br0 lladdr fc:ff:a6:ff:12:ff STALE\r",
+    "169.254.0.2 dev eth.ai-10 lladdr a0:ad:9f:0f:03:d9 REACHABLE\r",
 ]
 
 NEIGH_DEVICES = {
