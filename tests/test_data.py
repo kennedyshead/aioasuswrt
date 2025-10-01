@@ -378,7 +378,7 @@ NEIGH_DEVICES = {
         mac="AB:CD:DE:AB:CD:EF", ip="123.123.123.128", name=None
     ),
     "A0:AD:9F:0F:03:D9": Device(
-        "A0:AD:9F:0F:03:D9", "169.254.0.2", interface="eth.ai-10"
+        mac="A0:AD:9F:0F:03:D9", ip="169.254.0.2", name=None
     ),
 }
 
@@ -392,6 +392,7 @@ LEASES_DEVICES = {
     "01:02:03:04:06:08": Device("01:02:03:04:06:08", "123.123.123.125", "TV"),
     "08:09:10:11:12:14": Device("08:09:10:11:12:14", "123.123.123.126"),
     "AB:CD:DE:AB:CD:EF": Device("AB:CD:DE:AB:CD:EF", "123.123.123.128"),
+    "A0:AD:9F:0F:03:D9": Device("A0:AD:9F:0F:03:D9", "169.254.0.2"),
 }
 
 WAKE_DEVICES = {
