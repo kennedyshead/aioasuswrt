@@ -364,6 +364,7 @@ NEIGH_DATA = [
     "123.123.123.127 dev br0  FAILED\r",
     "123.123.123.129 dev br0 lladdr 08:09:15:15:15:15 DELAY\r",
     "fe80::feff:a6ff:feff:12ff dev br0 lladdr fc:ff:a6:ff:12:ff STALE\r",
+    "169.254.0.2 dev eth.ai-10 lladdr a0:ad:9f:0f:03:d9 REACHABLE\r",
 ]
 
 NEIGH_DEVICES = {
@@ -375,6 +376,9 @@ NEIGH_DEVICES = {
     ),
     "AB:CD:DE:AB:CD:EF": Device(
         mac="AB:CD:DE:AB:CD:EF", ip="123.123.123.128", name=None
+    ),
+    "A0:AD:9F:0F:03:D9": Device(
+        "A0:AD:9F:0F:03:D9", "169.254.0.2", interface="eth.ai-10"
     ),
 }
 
