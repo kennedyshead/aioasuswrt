@@ -336,6 +336,7 @@ ARP_DATA = [
     "? (123.123.123.128) at AB:CD:DE:AB:CD:EF [ether]  on br0\r",
     "? (123.123.123.127) at <incomplete>  on br0\r",
     "? (172.16.10.2) at 00:25:90:12:2D:90 [ether]  on br0\r",
+    "? (169.254.0.2) at a0:ad:9f:0f:03:d9 [ether] on eth.ai-10\r",
 ]
 
 ARP_DEVICES = {
@@ -350,6 +351,9 @@ ARP_DEVICES = {
     ),
     "00:25:90:12:2D:90": Device(
         "00:25:90:12:2D:90", "172.16.10.2", interface="br0"
+    ),
+    "A0:AD:9F:0F:03:D9": Device(
+        "A0:AD:9F:0F:03:D9", "169.254.0.2", interface="eth.ai-10"
     ),
 }
 
@@ -411,6 +415,9 @@ WAKE_DEVICES_AP = {
     "00:25:90:12:2D:90": Device(
         "00:25:90:12:2D:90", "172.16.10.2", interface="br0"
     ),
+    "A0:AD:9F:0F:03:D9": Device(
+        "A0:AD:9F:0F:03:D9", "169.254.0.2", interface="eth.ai-10"
+    ),
 }
 
 WAKE_DEVICES_NO_IP = {
@@ -428,5 +435,8 @@ WAKE_DEVICES_NO_IP = {
     ),
     "00:25:90:12:2D:90": Device(
         "00:25:90:12:2D:90", "172.16.10.2", interface="br0"
+    ),
+    "A0:AD:9F:0F:03:D9": Device(
+        "A0:AD:9F:0F:03:D9", "169.254.0.2", interface="eth.ai-10"
     ),
 }
