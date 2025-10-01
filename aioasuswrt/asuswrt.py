@@ -56,7 +56,7 @@ _ARP_REGEX = re.compile(
     r".+\s"
     r"(?P<mac>(([0-9a-fA-F]{2}[:-]){5}([0-9a-fA-F]{2})))"
     r".+\s"
-    r"(?P<interface>([\w+]+.$))"
+    r"(?P<interface>([\w.-]+))"
 )
 
 
