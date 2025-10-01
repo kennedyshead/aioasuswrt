@@ -42,7 +42,7 @@ _IP_NEIGH_REGEX: Pattern[str] = re.compile(
     r"(?P<ip>([0-9]{1,3}[\.]){3}[0-9]{1,3}|"
     r"([0-9a-fA-F]{1,4}:){1,7}[0-9a-fA-F]{0,4}(:[0-9a-fA-F]{1,4}){1,7})\s"
     r"\w+\s"
-    r"\w+\s"
+    r"\w+.+\s"
     r"(\w+\s(?P<mac>(([0-9a-fA-F]{2}[:-]){5}([0-9a-fA-F]{2}))))?\s"
     r"\s?(router)?"
     r"\s?(nud)?"
