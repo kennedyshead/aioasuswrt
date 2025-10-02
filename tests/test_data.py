@@ -1,13 +1,9 @@
 from aioasuswrt.asuswrt import Device, DeviceData, Interface
 
-# flake8: noqa
-
 RX_DATA = ["2703926881", ""]
 TX_DATA = ["648110137", ""]
-
 RX = 2703926881
 TX = 648110137
-
 TEMP_DATA = [
     ["59 (0x3b)\r"],
     ["69 (0x45)\r"],
@@ -17,7 +13,6 @@ TEMP_DATA = [
     ["CPU temperature	: 77"],
 ]
 TEMP_DATA_2ND = [[""], [""], [""], [""], [""], ["81300"], ["81300"]]
-
 NETDEV_DATA = [
     "nter-|   Receive                                                |  Transmit",
     " face |bytes    packets errs drop fifo frame compressed multicast|bytes    packets errs drop fifo colls carrier compressed",
@@ -38,7 +33,6 @@ NETDEV_DATA = [
     "ds0.1:       0       0    0    0    0     0          0         0 102404809  805208    0    0    0     0       0          0",
     " tun21:       0       0    0    0    0     0          0         0        0       0    0    0    0     0       0          0",
 ]
-
 INTERFACES_COUNT = {
     "lo": {
         "tx_bytes": 129406077,
@@ -311,25 +305,22 @@ INTERFACES_COUNT = {
         "rx_compressed": 0,
     },
 }
-
 LOADAVG_DATA = ["0.23 0.50 0.68 2/167 13095"]
-
 MEMINFO_DATA = ["0.46 0.75 0.77 1/165 2609"]
-
 WL_DATA = [
     "assoclist 01:02:03:04:06:08\r",
     "assoclist 08:09:10:11:12:14\r",
     "assoclist 08:09:10:11:12:15\r",
     "assoclist AB:CD:DE:AB:CD:EF\r",
 ]
-
+WL_MIISING_LINE = WL_DATA.copy()
+WL_MIISING_LINE.append(None)
 WL_DEVICES = {
     "01:02:03:04:06:08": Device("01:02:03:04:06:08"),
     "08:09:10:11:12:14": Device("08:09:10:11:12:14"),
     "08:09:10:11:12:15": Device("08:09:10:11:12:15"),
     "AB:CD:DE:AB:CD:EF": Device("AB:CD:DE:AB:CD:EF"),
 }
-
 ARP_DATA = [
     "? (123.123.123.125) at 01:02:03:04:06:08 [ether]  on eth0\r",
     "? (123.123.123.126) at 08:09:10:11:12:14 [ether]  on br0\r",
@@ -338,39 +329,36 @@ ARP_DATA = [
     "? (172.16.10.2) at 00:25:90:12:2D:90 [ether]  on br0\r",
     "? (169.254.0.2) at a0:ad:9f:0f:03:d9 [ether] on eth.ai-10\r",
 ]
-
 ARP_DEVICES = {
     "01:02:03:04:06:08": Device(
         "01:02:03:04:06:08",
         DeviceData("123.123.123.125"),
-        interface=Interface("eth0"),
+        Interface("eth0"),
     ),
     "08:09:10:11:12:14": Device(
         "08:09:10:11:12:14",
         DeviceData("123.123.123.126"),
-        interface=Interface("br0"),
+        Interface("br0"),
     ),
     "08:09:10:11:12:15": Device(
         "08:09:10:11:12:15",
-        DeviceData(),
     ),
     "AB:CD:DE:AB:CD:EF": Device(
         "AB:CD:DE:AB:CD:EF",
         DeviceData("123.123.123.128"),
-        interface=Interface("br0"),
+        Interface("br0"),
     ),
     "00:25:90:12:2D:90": Device(
         "00:25:90:12:2D:90",
         DeviceData("172.16.10.2"),
-        interface=Interface("br0"),
+        Interface("br0"),
     ),
     "A0:AD:9F:0F:03:D9": Device(
         "A0:AD:9F:0F:03:D9",
         DeviceData("169.254.0.2"),
-        interface=Interface("eth.ai-10"),
+        Interface("eth.ai-10"),
     ),
 }
-
 NEIGH_DATA = [
     "123.123.123.125 dev eth0 lladdr 01:02:03:04:06:08 REACHABLE\r",
     "123.123.123.126 dev br0 lladdr 08:09:10:11:12:14 REACHABLE\r",
@@ -380,59 +368,71 @@ NEIGH_DATA = [
     "fe80::feff:a6ff:feff:12ff dev br0 lladdr fc:ff:a6:ff:12:ff STALE\r",
     "169.254.0.2 dev eth.ai-10 lladdr a0:ad:9f:0f:03:d9 REACHABLE\r",
 ]
-
 NEIGH_DEVICES = {
     "01:02:03:04:06:08": Device(
-        "01:02:03:04:06:08", DeviceData("123.123.123.125")
+        "01:02:03:04:06:08",
+        DeviceData("123.123.123.125"),
+        Interface("eth0"),
     ),
     "08:09:10:11:12:14": Device(
-        "08:09:10:11:12:14", DeviceData("123.123.123.126")
+        "08:09:10:11:12:14",
+        DeviceData("123.123.123.126"),
+        Interface("br0"),
     ),
     "08:09:10:11:12:15": Device(
         "08:09:10:11:12:15",
     ),
     "AB:CD:DE:AB:CD:EF": Device(
-        "AB:CD:DE:AB:CD:EF", DeviceData("123.123.123.128")
+        "AB:CD:DE:AB:CD:EF",
+        DeviceData("123.123.123.128"),
+        Interface("br0"),
     ),
     "00:25:90:12:2D:90": Device(
         "00:25:90:12:2D:90",
         DeviceData("172.16.10.2"),
-        interface=Interface("br0"),
+        Interface("br0"),
     ),
     "A0:AD:9F:0F:03:D9": Device(
-        "A0:AD:9F:0F:03:D9", DeviceData("169.254.0.2")
+        "A0:AD:9F:0F:03:D9",
+        DeviceData("169.254.0.2"),
+        Interface("eth.ai-10"),
     ),
 }
-
 LEASES_DATA = [  # android device is not present
     "51910 01:02:03:04:06:08 123.123.123.125 TV 01:02:03:04:06:08\r",
     "79986 01:02:03:04:06:10 123.123.123.127 android 01:02:03:04:06:15\r",
     "23523 08:09:10:11:12:14 123.123.123.126 * 08:09:10:11:12:14\r",
 ]
-
 LEASES_DEVICES = {
     "01:02:03:04:06:08": Device(
-        "01:02:03:04:06:08", DeviceData("123.123.123.125", "TV")
+        "01:02:03:04:06:08",
+        DeviceData("123.123.123.125", "TV"),
+        Interface("eth0"),
     ),
     "08:09:10:11:12:14": Device(
-        "08:09:10:11:12:14", DeviceData("123.123.123.126")
+        "08:09:10:11:12:14",
+        DeviceData("123.123.123.126"),
+        Interface("br0"),
     ),
     "08:09:10:11:12:15": Device(
         "08:09:10:11:12:15",
     ),
     "AB:CD:DE:AB:CD:EF": Device(
-        "AB:CD:DE:AB:CD:EF", DeviceData("123.123.123.128")
+        "AB:CD:DE:AB:CD:EF",
+        DeviceData("123.123.123.128"),
+        Interface("br0"),
     ),
     "00:25:90:12:2D:90": Device(
         "00:25:90:12:2D:90",
         DeviceData("172.16.10.2"),
-        interface=Interface("br0"),
+        Interface("br0"),
     ),
     "A0:AD:9F:0F:03:D9": Device(
-        "A0:AD:9F:0F:03:D9", DeviceData("169.254.0.2")
+        "A0:AD:9F:0F:03:D9",
+        DeviceData("169.254.0.2"),
+        Interface("eth.ai-10"),
     ),
 }
-
 WAKE_DEVICES_AP = NEIGH_DEVICES.copy()
 WAKE_DEVICES_AP.pop("08:09:10:11:12:15")
 WAKE_DEVICES_AP_NO_IP = NEIGH_DEVICES.copy()
