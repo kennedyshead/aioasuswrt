@@ -56,6 +56,11 @@ class Device:
         self._interface: Interface = interface
 
     @property
+    def mac(self) -> str:
+        """The mac property."""
+        return self._mac
+
+    @property
     def device_data(self) -> DeviceData:
         """The device data collected from router."""
         return self._device_data
@@ -102,6 +107,23 @@ class Device:
             self._interface.name,
             self._interface.mac,
         )
+
+
+def merge_device(old: Device, new: Device) -> Device:
+    """Merge 2 devices into one."""
+    return Device(
+        new.mac,
+        DeviceData(
+            new.device_data.ip or old.device_data.ip,
+            new.device_data.name or old.device_data.name,
+            new.device_data.rssi or old.device_data.rssi,
+        ),
+        Interface(
+            new.interface.interface or old.interface.interface,
+            new.interface.name or old.interface.name,
+            new.interface.mac or old.interface.mac,
+        ),
+    )
 
 
 async def _parse_lines(
@@ -229,10 +251,13 @@ class AsusWrt:
         def _handle(device: Dict[str, str]) -> None:
             if device["mac"] is not None:
                 mac = device["mac"].upper()
-                devices[mac] = Device(
-                    mac,
-                    DeviceData(device["ip"]),
-                    Interface(device["interface"]),
+                devices[mac] = merge_device(
+                    devices[mac] if mac in devices else Device(mac),
+                    Device(
+                        mac,
+                        DeviceData(device["ip"]),
+                        Interface(device["interface"]),
+                    ),
                 )
 
         list(map(_handle, result))
@@ -254,19 +279,19 @@ class AsusWrt:
             mac = device["mac"].upper()
             if mac not in devices:
                 _LOGGER.debug(
-                    "Skipping %s its not already in the device list, "
+                    "Skipping %s its not in the device list, "
                     "meaning its not currently precent",
                     mac,
                 )
                 return
-            devices[mac] = Device(
-                mac,
-                DeviceData(
-                    device.get(
-                        "ip",
-                        devices[mac].device_data.ip,
+            devices[mac] = merge_device(
+                devices[mac],
+                Device(
+                    mac,
+                    DeviceData(
+                        device["ip"],
+                        host,
                     ),
-                    host or devices[mac].device_data.name,
                 ),
             )
 
@@ -287,18 +312,12 @@ class AsusWrt:
             status = device["status"]
             mac = device["mac"].upper()
             if status is None or status and status.upper() != "REACHABLE":
-                if mac in devices:
-                    devices.pop(mac)
                 return
-            devices[mac] = Device(
-                mac,
-                DeviceData(
-                    device.get(
-                        "ip",
-                        devices[mac].device_data.ip
-                        if mac in devices
-                        else None,
-                    )
+            devices[mac] = merge_device(
+                devices[mac],
+                Device(
+                    mac,
+                    DeviceData(device["ip"]),
                 ),
             )
 
@@ -327,14 +346,14 @@ class AsusWrt:
                     device = conn_items[mac]
                     ip = device.get("ip")
                     rssi = device.get("rssi")
-                    if mac not in devices:
-                        devices[mac] = Device(mac)
-                    if ip:
-                        devices[mac].device_data.ip = ip
-                    if rssi:
-                        devices[mac].device_data.rssi = rssi
-                    devices[mac].interface.name = conn_type
-                    devices[mac].interface.mac = interface_mac
+                    devices[mac] = merge_device(
+                        devices[mac] if mac in devices else Device(mac),
+                        Device(
+                            mac,
+                            DeviceData(ip, None, rssi),
+                            Interface(None, conn_type, interface_mac),
+                        ),
+                    )
 
         _LOGGER.debug(
             "There are %s devices found after clientlist.json", len(devices)

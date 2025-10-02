@@ -3,8 +3,7 @@ from typing import Any, Dict
 import pytest
 
 from aioasuswrt.asuswrt import AsusWrt, AuthConfig, Device, Settings
-
-from .test_data import (
+from tests.test_data import (
     ARP_DATA,
     ARP_DEVICES,
     INTERFACES_COUNT,
@@ -20,6 +19,7 @@ from .test_data import (
     WAKE_DEVICES_AP_NO_IP,
     WL_DATA,
     WL_DEVICES,
+    WL_MIISING_LINE,
 )
 
 
@@ -44,6 +44,19 @@ def mock_run_cmd(mocker: Any, values: Any) -> None:
         "aioasuswrt.connection.SshConnection.run_command",
         side_effect=patch_func,
     )
+
+
+@pytest.mark.asyncio
+async def test_parse_with_empty_line(mocker: Any) -> None:
+    """Testing _parse_lines where we get an empty line."""
+    mock_run_cmd(mocker, [WL_MIISING_LINE])
+    scanner = AsusWrt(host="localhost", auth_config=AuthConfig())
+    devices: Dict[str, Device] = {}
+    await scanner._get_wl(devices)
+    assert WL_DEVICES.keys() == devices.keys()
+    values = [value.to_tuple() for value in devices.values()]
+    compare_values = [value.to_tuple() for value in WL_DEVICES.values()]
+    assert values == compare_values
 
 
 @pytest.mark.asyncio
