@@ -1,5 +1,8 @@
+from typing import List, Optional
+
 from aioasuswrt.asuswrt import Device, DeviceData, Interface
 
+# pylint: skip-file
 RX_DATA = ["2703926881", ""]
 TX_DATA = ["648110137", ""]
 RX = 2703926881
@@ -307,7 +310,7 @@ INTERFACES_COUNT = {
 }
 LOADAVG_DATA = ["0.23 0.50 0.68 2/167 13095"]
 MEMINFO_DATA = ["0.46 0.75 0.77 1/165 2609"]
-WL_DATA = [
+WL_DATA: List[Optional[str]] = [
     "assoclist 01:02:03:04:06:08\r",
     "assoclist 08:09:10:11:12:14\r",
     "assoclist 08:09:10:11:12:15\r",

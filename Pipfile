@@ -15,6 +15,7 @@ yapf = "*"
 rope = "*"
 pytest-cov = "*"
 ruff = "*"
+pylint = "*"
 
 [requires]
 python_version = "3.12"

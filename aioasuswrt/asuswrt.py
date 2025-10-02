@@ -193,11 +193,11 @@ class AsusWrt:
         self._temps_commands: Dict[str, TempCommand] = {}
         self._connection: _BaseConnection = create_connection(
             host,
-            auth_config.port,
-            auth_config.username,
-            auth_config.password,
-            auth_config.ssh_key,
-            auth_config.use_telnet,
+            port=auth_config.port,
+            username=auth_config.username,
+            password=auth_config.password,
+            ssh_key=auth_config.ssh_key,
+            use_telnet=auth_config.use_telnet,
         )
 
     @property
