@@ -44,10 +44,6 @@ build-backend = "setuptools.build_meta"
 [tool.bandit]
 exclude_dirs = ["tests"]
 
-[tool.flake8]
-max_line_length = 79
-exclude = ["tests/test_data.py"]
-
 [tool.mypy]
 python_version = "3.13"
 warn_return_any = true
