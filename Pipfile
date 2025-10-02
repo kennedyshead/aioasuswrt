@@ -14,6 +14,7 @@ pytest-mock = "*"
 yapf = "*"
 rope = "*"
 pytest-cov = "*"
+ruff = "*"
 
 [requires]
 python_version = "3.12"

@@ -57,13 +57,13 @@ async def test_sending_cmds():
 
         connection = TelnetConnection("fake", 2, "fake", "fake")
         print("Doing connection")
-        await connection.async_connect()
+        await connection.connect()
         print("Fin connection")
 
         # Now let's send some arbitrary short command
         exp_ret_val = "Some arbitrary long return string." + "." * 100
         telnet_mock.set_return(exp_ret_val)
-        new_return = await connection.async_run_command("run command\n")
+        new_return = await connection.run_command("run command\n")
         print(new_return)
         assert new_return[0] == exp_ret_val
 
@@ -74,11 +74,11 @@ async def test_reconnect():
         "asyncio.open_connection", new=telnet_mock.open_connection
     ):
         connection = TelnetConnection("fake", 2, "fake", "fake")
-        await connection.async_connect()
+        await connection.connect()
 
         telnet_mock.raise_exception_on_write(
             IncompleteReadError("".encode("ascii"), 42)
         )
 
-        new_return = await connection.async_run_command("run command\n")
+        new_return = await connection.run_command("run command\n")
         assert new_return == [""]

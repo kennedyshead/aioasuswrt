@@ -44,45 +44,43 @@ class _BaseConnection(abc.ABC):
 
         return ret
 
-    async def async_run_command(
-        self, command: str, retry: bool = True
-    ) -> List[str]:
+    async def run_command(self, command: str, retry: bool = True) -> List[str]:
         """Call a command using the connection."""
         async with self._io_lock:
             if not self.is_connected:
-                await self.async_connect()
+                await self.connect()
 
             try:
-                return await self._async_call_command(command)
+                return await self._call_command(command)
             except _CommandException as ex:
                 _LOGGER.exception(ex)
 
         # The command failed
         if retry:
             _LOGGER.debug(f"Retrying command: {command}")
-            return await self._async_call_command(command)
+            return await self._call_command(command)
         return []
 
-    async def async_connect(self) -> None:
+    async def connect(self) -> None:
         if self.is_connected:
             _LOGGER.debug(
                 f"Connection already established to: {self.description}"
             )
             return
 
-        await self._async_connect()
+        await self._connect()
 
-    async def async_disconnect(self) -> None:
+    async def disconnect(self) -> None:
         """Disconnect the client."""
         async with self._io_lock:
             self._disconnect()
 
     @abc.abstractmethod
-    async def _async_call_command(self, command: str) -> List[str]:
+    async def _call_command(self, command: str) -> List[str]:
         """Call the command."""
 
     @abc.abstractmethod
-    async def _async_connect(self) -> None:
+    async def _connect(self) -> None:
         """Establish a connection."""
 
     @abc.abstractmethod
@@ -97,26 +95,25 @@ class _BaseConnection(abc.ABC):
 
 
 def create_connection(
-    use_telnet: bool,
     host: str,
     port: Optional[int],
     username: Optional[str],
     password: Optional[str],
     ssh_key: Optional[str],
+    use_telnet: bool,
 ) -> _BaseConnection:
     """Create a connection to the router."""
     if use_telnet:
         return TelnetConnection(
             host=host, port=port, username=username, password=password
         )
-    else:
-        return SshConnection(
-            host=host,
-            port=port,
-            username=username,
-            password=password,
-            ssh_key=ssh_key,
-        )
+    return SshConnection(
+        host=host,
+        port=port,
+        username=username,
+        password=password,
+        ssh_key=ssh_key,
+    )
 
 
 class SshConnection(_BaseConnection):
@@ -138,7 +135,7 @@ class SshConnection(_BaseConnection):
         self._lock = asyncio.Lock()
         self._passphrase: Optional[str] = passphrase
 
-    async def _async_call_command(self, command: str) -> List[str]:
+    async def _call_command(self, command: str) -> List[str]:
         """
         Run commands through an SSH connection.
 
@@ -160,7 +157,7 @@ class SshConnection(_BaseConnection):
         """Do we have a connection."""
         return self._client is not None
 
-    async def _async_connect(self) -> None:
+    async def _connect(self) -> None:
         """Fetch the client or creates a new one."""
         kwargs = {
             "username": self._username,
@@ -218,14 +215,14 @@ class TelnetConnection(_BaseConnection):
         self._prompt_string = "".encode("ascii")
         self._linebreak: Optional[float] = None
 
-    async def _async_call_command(self, command: str) -> List[str]:
+    async def _call_command(self, command: str) -> List[str]:
         """Run a command through a Telnet connection."""
         try:
             if not self.is_connected:
-                await self._async_connect()
+                await self._connect()
 
             if self._linebreak is None:
-                self._linebreak = await self._async_linebreak()
+                self._linebreak = await self.linebreak()
 
             if not self._writer or not self._reader:
                 raise _CommandException
@@ -255,12 +252,12 @@ class TelnetConnection(_BaseConnection):
         start_split = floor(cmd_len / self._linebreak) + 1
         return list(line.decode("utf-8") for line in data_list[start_split:-1])
 
-    async def async_connect(self) -> None:
+    async def connect(self) -> None:
         """Connect to the ASUS-WRT Telnet server."""
         async with self._io_lock:
-            await self._async_connect()
+            await self._connect()
 
-    async def _async_connect(self) -> None:
+    async def _connect(self) -> None:
         if self.is_connected:
             self._disconnect()
 
@@ -293,7 +290,7 @@ class TelnetConnection(_BaseConnection):
             b"\n"
         )[-1]
 
-    async def _async_linebreak(self) -> float:
+    async def linebreak(self) -> float:
         """
         Get linebreak.
 
