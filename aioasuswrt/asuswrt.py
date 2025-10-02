@@ -307,7 +307,7 @@ class AsusWrt:
         result = await _parse_lines(lines, Regex.IP_NEIGH)
 
         def _handle(device: Dict[str, str]) -> None:
-            if device["mac"] is None:
+            if not device.get("mac"):
                 return
             status = device["status"]
             mac = device["mac"].upper()
@@ -532,8 +532,6 @@ class AsusWrt:
             print("finding commands")
             return await self._find_temperature_commands()
         for interface, command in self._temps_commands.items():
-            if not isinstance(command, TempCommand):
-                continue
             command_result: List[str] = (
                 await self._connection.run_command(str(command.cli_command))
             )[0].split(" ")
