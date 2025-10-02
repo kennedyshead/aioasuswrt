@@ -1,3 +1,5 @@
+# pylint: skip-file
+
 from asyncio import IncompleteReadError
 from unittest import TestCase, mock
 
