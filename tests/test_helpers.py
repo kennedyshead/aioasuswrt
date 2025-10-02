@@ -1,7 +1,9 @@
+# pylint: skip-file
+
 from aioasuswrt.helpers import convert_size
 
 
-def test_convert_size():
+def test_convert_size() -> None:
     assert "0 B" == convert_size(0)
     assert "1.0 B" == convert_size(1)
     assert "1.0 KB" == convert_size(1024)

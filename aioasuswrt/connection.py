@@ -3,7 +3,7 @@
 import abc
 import asyncio
 import logging
-from asyncio import IncompleteReadError, LimitOverrunError, TimeoutError
+from asyncio import IncompleteReadError, LimitOverrunError
 from asyncio.streams import StreamReader, StreamWriter
 from math import floor
 from typing import List, Optional
@@ -57,14 +57,15 @@ class _BaseConnection(abc.ABC):
 
         # The command failed
         if retry:
-            _LOGGER.debug(f"Retrying command: {command}")
+            _LOGGER.debug("Retrying command: %s", command)
             return await self._call_command(command)
         return []
 
     async def connect(self) -> None:
+        """Connect to router."""
         if self.is_connected:
             _LOGGER.debug(
-                f"Connection already established to: {self.description}"
+                "Connection already established to: %s", self.description
             )
             return
 
@@ -91,11 +92,11 @@ class _BaseConnection(abc.ABC):
     @abc.abstractmethod
     def is_connected(self) -> bool:
         """Do we have a connection."""
-        pass
 
 
-def create_connection(
+def create_connection(  # pylint: disable=too-many-arguments
     host: str,
+    *,
     port: Optional[int],
     username: Optional[str],
     password: Optional[str],
@@ -119,9 +120,10 @@ def create_connection(
 class SshConnection(_BaseConnection):
     """Maintains an SSH connection to an ASUS-WRT router."""
 
-    def __init__(
+    def __init__(  # pylint: disable=too-many-arguments
         self,
         host: str,
+        *,
         port: Optional[int] = None,
         username: Optional[str] = None,
         password: Optional[str] = None,
@@ -147,7 +149,7 @@ class SshConnection(_BaseConnection):
 
         async with self._lock:
             result = await asyncio.wait_for(
-                self._client.run("%s && %s" % (_PATH_EXPORT_COMMAND, command)),
+                self._client.run(f"{_PATH_EXPORT_COMMAND} && {command}"),
                 9,
             )
         return list(str(result.stdout).split("\n"))
@@ -180,16 +182,14 @@ class SshConnection(_BaseConnection):
         async with self._lock:
             if self._client:
                 _LOGGER.debug(
-                    "reconnecting; old connection had local port %d",
-                    self._client._local_port if self._client else "Unknown",
+                    "reconnecting; old connection is disconnected",
                 )
                 self._disconnect()
             else:
                 _LOGGER.debug("reconnecting; no old connection existed")
             self._client = await connect(self._host, **kwargs)
             _LOGGER.debug(
-                "reconnected; new connection has local port %d",
-                self._client._local_port if self._client else "Unknown",
+                "reconnected",
             )
 
     def _disconnect(self) -> None:
@@ -271,8 +271,7 @@ class TelnetConnection(_BaseConnection):
             await asyncio.wait_for(self._reader.readuntil(b"login: "), 9)
         except asyncio.IncompleteReadError:
             _LOGGER.error(
-                "Unable to read from router on %s:%s"
-                % (self._host, self._port)
+                "Unable to read from router on %s:%s", self._host, self._port
             )
             return
         except TimeoutError:
@@ -321,8 +320,9 @@ class TelnetConnection(_BaseConnection):
                 # We can do a quick sanity check, as there are more linebreaks
                 if len(data[1]) != linebreak:
                     _LOGGER.warning(
-                        f"Inconsistent linebreaks {len(data[1])} != "
-                        f"{linebreak}"
+                        "Inconsistent linebreaks %s != %s",
+                        len(data[1]),
+                        linebreak,
                     )
 
         return linebreak

@@ -72,7 +72,7 @@ TEMP_COMMANDS: Dict[str, List[TempCommand]] = {
 }
 
 
-class Regex:
+class Regex:  # pylint: disable=too-few-public-methods
     """Regex mapping."""
 
     VPN_LIST: Pattern[str] = re.compile(
@@ -145,7 +145,7 @@ class Command(StrEnum):
     VPN_STOP = "service stop_vpnclient{id}"
 
 
-class Nvram:
+class Nvram:  # pylint: disable=too-few-public-methods
     """Property mapping for nvram info."""
 
     DHCP: List[str] = [

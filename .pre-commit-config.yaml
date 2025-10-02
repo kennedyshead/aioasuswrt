@@ -42,4 +42,16 @@ repos:
         types_or: [python, pyi]
         args: ["check", "--select", "I", "--fix"]
       - id: ruff-format
+  - repo: local
+    hooks:
+      - id: pylint
+        name: pylint
+        entry: pylint
+        language: system
+        types: [python]
+        require_serial: true
+        args: [
+            "-rn", # Only display messages
+            "-sn", # Don't display the score
+          ]
         types_or: [python, pyi]

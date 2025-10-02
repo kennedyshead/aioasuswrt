@@ -4,6 +4,7 @@ Mock library for the Telnet connection.
 Especially mocking the reader/writer of asyncio.
 """
 
+# pylint: skip-file
 import textwrap
 from typing import Any, Optional, Tuple
 
