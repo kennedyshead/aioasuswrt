@@ -1,6 +1,8 @@
+from typing import Any, Dict
+
 import pytest
 
-from aioasuswrt.asuswrt import AsusWrt
+from aioasuswrt.asuswrt import AsusWrt, AuthConfig, Device, Settings
 
 from .test_data import (
     ARP_DATA,
@@ -15,16 +17,16 @@ from .test_data import (
     TEMP_DATA,
     TEMP_DATA_2ND,
     WAKE_DEVICES_AP,
-    WAKE_DEVICES_NO_IP,
+    WAKE_DEVICES_AP_NO_IP,
     WL_DATA,
     WL_DEVICES,
 )
 
 
-def mock_run_cmd(mocker, values) -> None:
+def mock_run_cmd(mocker: Any, values: Any) -> None:
     iter = 0
 
-    async def patch_func(command, *args, **kwargs):
+    async def patch_func(command: Any, *args: Any, **kwargs: Any) -> Any:
         nonlocal iter
         print(f"Command: {command}\nwith args={args} and kwargs={kwargs}")
         iter = iter + 1
@@ -39,18 +41,18 @@ def mock_run_cmd(mocker, values) -> None:
             assert False
 
     mocker.patch(
-        "aioasuswrt.connection.SshConnection.async_run_command",
+        "aioasuswrt.connection.SshConnection.run_command",
         side_effect=patch_func,
     )
 
 
 @pytest.mark.asyncio
-async def test_get_wl(mocker) -> None:
+async def test_get_wl(mocker: Any) -> None:
     """Testing wl."""
     mock_run_cmd(mocker, [WL_DATA])
-    scanner = AsusWrt(host="localhost", port=22)
-    devices = {}
-    await scanner.async_get_wl(devices)
+    scanner = AsusWrt(host="localhost", auth_config=AuthConfig())
+    devices: Dict[str, Device] = {}
+    await scanner._get_wl(devices)
     assert WL_DEVICES.keys() == devices.keys()
     values = [value.to_tuple() for value in devices.values()]
     compare_values = [value.to_tuple() for value in WL_DEVICES.values()]
@@ -58,22 +60,22 @@ async def test_get_wl(mocker) -> None:
 
 
 @pytest.mark.asyncio
-async def test_get_wl_empty(mocker) -> None:
+async def test_get_wl_empty(mocker: Any) -> None:
     """Testing wl."""
     mock_run_cmd(mocker, [""])
-    scanner = AsusWrt(host="localhost", port=22)
-    devices = {}
-    await scanner.async_get_wl(devices)
+    scanner = AsusWrt(host="localhost", auth_config=AuthConfig())
+    devices: Dict[str, Device] = {}
+    await scanner._get_wl(devices)
     assert {} == devices
 
 
 @pytest.mark.asyncio
-async def test_async_get_leases(mocker) -> None:
+async def test_get_leases(mocker: Any) -> None:
     """Testing leases."""
     mock_run_cmd(mocker, [LEASES_DATA])
-    scanner = AsusWrt(host="localhost", port=22)
-    devices = NEIGH_DEVICES.copy()
-    await scanner.async_get_leases(devices)
+    scanner = AsusWrt(host="localhost", auth_config=AuthConfig())
+    devices: Dict[str, Device] = NEIGH_DEVICES.copy()
+    await scanner._get_leases(devices)
     assert LEASES_DEVICES.keys() == devices.keys()
     values = [value.to_tuple() for value in devices.values()]
     compare_values = [value.to_tuple() for value in LEASES_DEVICES.values()]
@@ -81,12 +83,12 @@ async def test_async_get_leases(mocker) -> None:
 
 
 @pytest.mark.asyncio
-async def test_get_arp(mocker) -> None:
+async def test_get_arp(mocker: Any) -> None:
     """Testing arp."""
     mock_run_cmd(mocker, [ARP_DATA])
-    scanner = AsusWrt(host="localhost", port=22)
-    devices = {}
-    await scanner.async_get_arp(devices)
+    scanner = AsusWrt(host="localhost", auth_config=AuthConfig())
+    devices: Dict[str, Device] = WL_DEVICES.copy()
+    await scanner._get_arp(devices)
     assert ARP_DEVICES.keys() == devices.keys()
     values = [value.to_tuple() for value in devices.values()]
     compare_values = [value.to_tuple() for value in ARP_DEVICES.values()]
@@ -94,21 +96,27 @@ async def test_get_arp(mocker) -> None:
 
 
 @pytest.mark.asyncio
-async def test_get_neigh(mocker) -> None:
+async def test_get_neigh(mocker: Any) -> None:
     """Testing neigh."""
     mock_run_cmd(mocker, [NEIGH_DATA])
-    scanner = AsusWrt(host="localhost", port=22)
-    devices = NEIGH_DEVICES.copy()
-    await scanner.async_get_neigh(devices)
-    assert NEIGH_DEVICES == devices
+    scanner = AsusWrt(host="localhost", auth_config=AuthConfig())
+    devices: Dict[str, Device] = ARP_DEVICES.copy()
+    await scanner._get_neigh(devices)
+    values = [value.to_tuple() for value in devices.values()]
+    compare_values = [value.to_tuple() for value in NEIGH_DEVICES.values()]
+    assert values == compare_values
 
 
 @pytest.mark.asyncio
-async def test_get_connected_devices_ap(mocker) -> None:
+async def test_get_connected_devices_ap(mocker: Any) -> None:
     """Test for get asuswrt_data in ap mode."""
     mock_run_cmd(mocker, [WL_DATA, ARP_DATA, NEIGH_DATA, LEASES_DATA])
-    scanner = AsusWrt(host="localhost", port=22, mode="ap", require_ip=True)
-    devices = await scanner.async_get_connected_devices()
+    scanner = AsusWrt(
+        host="localhost",
+        auth_config=AuthConfig(),
+        settings=Settings(mode="ap", require_ip=True),
+    )
+    devices = await scanner.get_connected_devices()
     assert WAKE_DEVICES_AP.keys() == devices.keys()
     values = [value.to_tuple() for value in devices.values()]
     compare_values = [value.to_tuple() for value in WAKE_DEVICES_AP.values()]
@@ -116,57 +124,66 @@ async def test_get_connected_devices_ap(mocker) -> None:
 
 
 @pytest.mark.asyncio
-async def test_get_connected_devices_no_ip(mocker):
+async def test_get_connected_devices_ap_no_ip(mocker: Any) -> None:
     """Test for get asuswrt_data and not requiring ip."""
     mock_run_cmd(mocker, [WL_DATA, ARP_DATA, NEIGH_DATA, LEASES_DATA])
-    scanner = AsusWrt(host="localhost", port=22, mode="ap", require_ip=False)
-    devices = await scanner.async_get_connected_devices()
-    assert WAKE_DEVICES_NO_IP.keys() == devices.keys()
+    scanner = AsusWrt(
+        host="localhost",
+        auth_config=AuthConfig(),
+        settings=Settings(mode="ap", require_ip=False),
+    )
+    devices = await scanner.get_connected_devices()
+    assert WAKE_DEVICES_AP_NO_IP.keys() == devices.keys()
     values = [value.to_tuple() for value in devices.values()]
     compare_values = [
-        value.to_tuple() for value in WAKE_DEVICES_NO_IP.values()
+        value.to_tuple() for value in WAKE_DEVICES_AP_NO_IP.values()
     ]
     assert values == compare_values
 
 
 @pytest.mark.asyncio
-async def test_async_get_temperature(mocker):
+async def test_get_temperature(mocker: Any) -> None:
     """Test getting temperature."""
     mock_run_cmd(mocker, TEMP_DATA)
-    scanner = AsusWrt(host="localhost", port=22, mode="ap", require_ip=False)
-    data = await scanner.async_get_temperature()
+    scanner = AsusWrt(
+        host="localhost",
+        auth_config=AuthConfig(),
+        settings=Settings(mode="ap", require_ip=False),
+    )
+    data = await scanner.get_temperature()
     assert data == {"2.4GHz": 49.5, "5.0GHz": 54.5, "CPU": 77.0}
 
     mock_run_cmd(mocker, TEMP_DATA_2ND)
-    scanner = AsusWrt(host="localhost", port=22, mode="ap", require_ip=False)
-    data = await scanner.async_get_temperature()
+    scanner = AsusWrt(
+        host="localhost",
+        auth_config=AuthConfig(),
+        settings=Settings(mode="ap", require_ip=False),
+    )
+    data = await scanner.get_temperature()
     assert data == {"2.4GHz": 0.0, "5.0GHz": 0.0, "CPU": 81.3}
 
 
 @pytest.mark.asyncio
-async def test_async_get_loadavg(mocker):
+async def test_get_loadavg(mocker: Any) -> None:
     """Test getting loadavg."""
     mock_run_cmd(mocker, [LOADAVG_DATA])
-    scanner = AsusWrt(host="localhost", port=22, mode="ap", require_ip=False)
-    data = await scanner.async_get_loadavg()
+    scanner = AsusWrt(
+        host="localhost",
+        auth_config=AuthConfig(),
+        settings=Settings(mode="ap", require_ip=False),
+    )
+    data = await scanner.get_loadavg()
     assert data == [0.23, 0.5, 0.68]
 
 
 @pytest.mark.asyncio
-async def test_async_get_interfaces_counts(mocker):
+async def test_get_interfaces_counts(mocker: Any) -> None:
     """Test getting loadavg."""
     mock_run_cmd(mocker, [NETDEV_DATA])
-    scanner = AsusWrt(host="localhost", port=22, mode="ap", require_ip=False)
-    data = await scanner.async_get_interfaces_counts()
+    scanner = AsusWrt(
+        host="localhost",
+        auth_config=AuthConfig(),
+        settings=Settings(mode="ap", require_ip=False),
+    )
+    data = await scanner.get_interfaces_count()
     assert data == INTERFACES_COUNT
-
-
-# @pytest.mark.asyncio
-# async def test_async_get_meminfo():
-#     """Test getting meminfo."""
-#     mocker.patch(
-#         'aioasuswrt.connection.SshConnection.async_run_command',
-#         side_effect=cmd_mock)
-#     scanner = AsusWrt(host="localhost", port=22, mode='ap', require_ip=False)
-#     data = await scanner.async_get_meminfo()
-#     assert data == []

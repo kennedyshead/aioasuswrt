@@ -146,5 +146,5 @@ fabric.properties
 .vscode
 
 test.py
-upload.sh
 .pytest_cache
+.ruff_cache
