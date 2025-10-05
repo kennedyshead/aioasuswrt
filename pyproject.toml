@@ -1,6 +1,6 @@
 [project]
 name = "aioasuswrt"
-version = "1.5.1-1"
+version = "1.5.2"
 description = "Api wrapper for Asuswrt https://www.asus.com/ASUSWRT/"
 readme = "README.md"
 requires-python = ">= 3.12"
