@@ -1,4 +1,4 @@
-"""aioasuswrt package."""
+"""Package with public classes and methods."""
 
 from importlib.metadata import PackageNotFoundError, version
 

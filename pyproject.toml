@@ -1,5 +1,5 @@
 [project]
-name = "aioasuswrt"
+name = "aioAsusWRT"
 version = "1.5.1"
 description = "Api wrapper for Asuswrt https://www.asus.com/ASUSWRT/"
 readme = "README.md"
@@ -61,6 +61,9 @@ mypy_path = "$MYPY_CONFIG_FILE_DIR/melissa"
 [[tool.mypy.overrides]]
 module = ["asyncssh"]
 ignore_missing_imports = true
+
+[tool.pylint.MASTER]
+ignore-paths = "^docs/.*$"
 
 [tool.pytest.ini_options]
 pythonpath = ["aioasuswrt", "."]

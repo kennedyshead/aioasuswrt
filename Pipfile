@@ -16,6 +16,9 @@ rope = "*"
 pytest-cov = "*"
 ruff = "*"
 pylint = "*"
+sphinx = "*"
+sphinx-pyproject = "*"
+sphinx-autodoc-typehints = "*"
 
 [requires]
 python_version = "3.12"

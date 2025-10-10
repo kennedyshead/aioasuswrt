@@ -4,7 +4,11 @@ import math
 
 
 def convert_size(size_bytes: float) -> str:
-    """Convert bytes to a readable string."""
+    """
+    Convert bytes to a readable string.
+
+    :param size_bytes: no of bytes
+    """
     if size_bytes == 0:
         return "0 B"
     size_name = ("B", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB")
