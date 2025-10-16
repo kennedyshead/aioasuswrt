@@ -6,15 +6,21 @@ from unittest import TestCase, mock
 import pytest
 
 from aioasuswrt.connection import TelnetConnection
+from aioasuswrt.structure import AuthConfig, ConnectionType
 from tests.mocks import telnet_mock
 
 
 class TestTelnetConnection(TestCase):
     """Testing TelnetConnection."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         """Set up test env."""
-        self.connection = TelnetConnection("fake", 2, "fake", "fake")
+        self.connection = TelnetConnection(
+            "fake",
+            auth_config=AuthConfig(
+                {"username": "fake", "password": "fake", "port": 2}
+            ),
+        )
         # self.connection._connected = True
         self.connection._prompt_string = "".encode("ascii")
 
@@ -52,30 +58,50 @@ class TestTelnetConnection(TestCase):
 @pytest.mark.asyncio
 async def test_sending_cmds():
     with mock.patch(
-        "asyncio.open_connection", new=telnet_mock.open_connection
+        "aioasuswrt.connection.open_connection",
+        new=telnet_mock.open_connection,
     ):
         # Let's set a short linebreak of 10
         telnet_mock.set_linebreak(22)
 
-        connection = TelnetConnection("fake", 2, "fake", "fake")
-        print("Doing connection")
+        connection = TelnetConnection(
+            "fake",
+            auth_config=AuthConfig(
+                username="fake",
+                password="fake",
+                connection_type=ConnectionType.TELNET,
+                ssh_key=None,
+                passphrase=None,
+                port=2,
+            ),
+        )
         await connection.connect()
-        print("Fin connection")
 
         # Now let's send some arbitrary short command
         exp_ret_val = "Some arbitrary long return string." + "." * 100
         telnet_mock.set_return(exp_ret_val)
         new_return = await connection.run_command("run command\n")
-        print(new_return)
         assert new_return[0] == exp_ret_val
 
 
 @pytest.mark.asyncio
 async def test_reconnect():
     with mock.patch(
-        "asyncio.open_connection", new=telnet_mock.open_connection
+        "aioasuswrt.connection.open_connection",
+        new=telnet_mock.open_connection,
     ):
-        connection = TelnetConnection("fake", 2, "fake", "fake")
+        connection = TelnetConnection(
+            "fake",
+            auth_config=AuthConfig(
+                username="fake",
+                password="fake",
+                connection_type=ConnectionType.TELNET,
+                ssh_key=None,
+                passphrase=None,
+                port=2,
+            ),
+        )
+
         await connection.connect()
 
         telnet_mock.raise_exception_on_write(
@@ -83,4 +109,4 @@ async def test_reconnect():
         )
 
         new_return = await connection.run_command("run command\n")
-        assert new_return == [""]
+        assert new_return == []

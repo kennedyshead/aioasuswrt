@@ -1,141 +1,70 @@
-"""Module for Asuswrt."""
+"""Module for Asuswrt class."""
 
-import json
-import logging
-import re
-from collections import namedtuple
-from dataclasses import dataclass
+from collections.abc import Iterable
+from json import loads
+from logging import getLogger
+from re import Pattern, findall, finditer, split
 from time import time
-from typing import Any, Dict, Iterable, List, Optional, Pattern, Tuple, Union
+from typing import final
 
-from aioasuswrt.commands import (
-    NETDEV_FIELDS,
-    TEMP_COMMANDS,
-    VPN_COUNT,
+from .connection import BaseConnection, create_connection
+from .constant import NETDEV_FIELDS, TEMP_COMMANDS, VPN_COUNT
+from .helpers import convert_size
+from .structure import (
+    AuthConfig,
     Command,
+    Device,
+    DeviceData,
+    Interface,
+    InterfaceJson,
+    Mode,
     Nvram,
-    Regex,
+    Settings,
     TempCommand,
+    TransferRates,
 )
-from aioasuswrt.connection import _BaseConnection, create_connection
-from aioasuswrt.helpers import convert_size
+from .structure import (
+    compiled_regex as Regex,
+)
 
-_LOGGER = logging.getLogger(__name__)
-
-
-@dataclass
-class Interface:
-    """Interface representation."""
-
-    interface: Optional[str] = None
-    name: Optional[str] = None
-    mac: Optional[str] = None
+_LOGGER = getLogger(__name__)
 
 
-@dataclass
-class DeviceData:
-    """Device data representation."""
-
-    ip: Optional[str] = None
-    name: Optional[str] = None
-    rssi: Optional[int] = None
-
-
-class Device:
-    """Device representation."""
-
-    def __init__(
-        self,
-        mac: str,
-        device_data: DeviceData = DeviceData(),
-        interface: Interface = Interface(),
-    ) -> None:
-        """Class to map the devices."""
-        self._mac: str = mac
-        self._device_data: DeviceData = device_data
-        self._interface: Interface = interface
-
-    @property
-    def mac(self) -> str:
-        """The mac property."""
-        return self._mac
-
-    @property
-    def device_data(self) -> DeviceData:
-        """The device data collected from router."""
-        return self._device_data
-
-    @property
-    def interface(self) -> Interface:
-        """The device connected interface collected from router."""
-        return self._interface
-
-    def __repr__(self) -> str:
-        """Representation of the device."""
-        return str(
-            {
-                "mac": self._mac,
-                "ip": self._device_data.ip,
-                "name": self._device_data.name,
-                "rssi": self._device_data.rssi,
-                "interface": self._interface.interface,
-                "interface_name": self._interface.name,
-                "interface_mac": self._interface.mac,
-            }
-        )
-
-    def to_tuple(self) -> Any:
-        """Return Device as a named tuple."""
-        DeviceT = namedtuple(
-            "DeviceT",
-            (
-                "mac",
-                "ip",
-                "name",
-                "rssi",
-                "interface",
-                "interface_name",
-                "interface_mac",
-            ),
-        )
-        return DeviceT(
-            self._mac,
-            self._device_data.ip,
-            self._device_data.name,
-            self._device_data.rssi,
-            self._interface.interface,
-            self._interface.name,
-            self._interface.mac,
-        )
-
-
-def merge_device(old: Device, new: Device) -> Device:
-    """Merge 2 devices into one."""
-    return Device(
-        new.mac,
-        DeviceData(
-            new.device_data.ip or old.device_data.ip,
-            new.device_data.name or old.device_data.name,
-            new.device_data.rssi or old.device_data.rssi,
-        ),
-        Interface(
-            new.interface.interface or old.interface.interface,
-            new.interface.name or old.interface.name,
-            new.interface.mac or old.interface.mac,
-        ),
-    )
+async def _run_temp_command(
+    api: BaseConnection, command: TempCommand
+) -> float | None:
+    command_result: list[str] = (
+        await api.run_command(str(command.cli_command))
+    )[0].split(" ")
+    print(command_result)
+    print(command.result_location)
+    result = command_result[int(command.result_location)]
+    if result.isnumeric():
+        return command.eval_function(float(result))
+    return None
 
 
 async def _parse_lines(
     lines: Iterable[str], regex: Pattern[str]
-) -> Iterable[Dict[str, Union[str, Any]]]:
+) -> Iterable[dict[str, str]]:
     """
     Parse the lines using the given regular expression.
 
     If a line can't be parsed it is logged and skipped in the output.
+    We first map all the lines, and after this filter out any None rows.
+
+    Args:
+        lines (Iterable[str]): A list of lines to parse
+        regex (Pattern[str]): The regex pattern to use on each line
     """
 
-    def _match(line: str) -> Optional[Dict[str, Union[str, Any]]]:
+    def _match(line: str) -> dict[str, str] | None:
+        """
+        Match a single line, will return a None value if no match is made.
+
+        Args:
+            line (str): single line to process
+        """
         if not line:
             return None
         match = regex.search(line)
@@ -144,60 +73,48 @@ async def _parse_lines(
             return None
         return match.groupdict()
 
-    return filter(None, map(_match, lines))
+    return list(filter(None, map(_match, lines)))
 
 
-@dataclass
-class TransferRates:
-    """Representation of transfer rates."""
+def _new_device(mac: str) -> Device:
+    """
+    Initialize a new device.
 
-    rx: int = 0
-    tx: int = 0
-    last_check: float = time()
-
-
-@dataclass
-class AuthConfig:
-    """Settings for how to authenticate."""
-
-    port: int = 22
-    username: Optional[str] = None
-    password: Optional[str] = None
-    ssh_key: Optional[str] = None
-    use_telnet: bool = False
+    Args:
+        mac (str): The MAC address of the device
+    """
+    return Device(
+        mac,
+        DeviceData(ip=None, name=None, status=None, rssi=None),
+        Interface(id=None, name=None, mac=None),
+    )
 
 
-@dataclass
-class Settings:
-    """Settings for the integration."""
-
-    require_ip: bool = False
-    mode: str = "router"
-    dnsmasq: str = "/var/lib/misc"
-    wan_interface: str = "eth0"
-
-
+@final
 class AsusWrt:
-    """This is the interface class."""
+    """This is the main interface class."""
 
     def __init__(
         self,
         host: str,
         auth_config: AuthConfig,
-        *,
-        settings: Settings = Settings(),
+        settings: Settings | None = None,
     ) -> None:
-        """Init function."""
-        self._settings: Settings = settings
-        self._transfer_rates: TransferRates = TransferRates()
-        self._temps_commands: Dict[str, TempCommand] = {}
-        self._connection: _BaseConnection = create_connection(
+        """
+        Initiate the AsusWrt class, and the connection interface.
+
+        Args:
+            host (str): IP or hostname for the router
+            auth_config (AuthConfig): The authentication configuration
+            settings (Settings | None): Optional aioasuswrt settings
+        """
+        self._settings = settings or Settings()
+        self._transfer_rates = TransferRates()
+        self._last_transfer_rates_check = time()
+        self._temps_commands: dict[str, TempCommand] = {}
+        self._connection = create_connection(
             host,
-            port=auth_config.port,
-            username=auth_config.username,
-            password=auth_config.password,
-            ssh_key=auth_config.ssh_key,
-            use_telnet=auth_config.use_telnet,
+            auth_config,
         )
 
     @property
@@ -205,10 +122,15 @@ class AsusWrt:
         """Wan interface property."""
         return self._settings.wan_interface
 
-    async def get_nvram(self, parameter_to_fetch: str) -> Dict[str, str]:
-        """Get nvram."""
-        data: Dict[str, str] = {}
-        target: Optional[List[str]] = getattr(Nvram, parameter_to_fetch, None)
+    async def get_nvram(self, parameter_to_fetch: str) -> dict[str, str]:
+        """
+        Get nvram value.
+
+        Args:
+            parameter_to_fetch (str): The parameter we are targeting to fetch.
+        """
+        data: dict[str, str] = {}
+        target: list[str] | None = getattr(Nvram, parameter_to_fetch, None)
         if not isinstance(target, list):
             return data
 
@@ -219,184 +141,209 @@ class AsusWrt:
         for item in target:
             regex = Regex.NVRAM.format(item)
             for line in lines:
-                result = re.findall(regex, line)
+                result = findall(regex, line)
                 if result:
                     data[item] = result[0]
                     break
         return data
 
-    async def _get_wl(self, devices: Dict[str, Device]) -> None:
-        """Get wl."""
+    async def _get_wl(self, devices: dict[str, Device]) -> dict[str, Device]:
+        """
+        Add devices fount in wl.
+
+        Args:
+            devices (dict[str, Device]): Currently known device list
+        """
         _LOGGER.info("get_wl")
         lines = await self._connection.run_command(Command.WL)
         if not lines:
-            return
+            return devices
         result = await _parse_lines(lines, Regex.WL)
 
-        def _handle(device: Dict[str, str]) -> None:
+        def _handle(device: dict[str, str]) -> None:
             mac = device["mac"].upper()
-            devices[mac] = Device(mac)
+            devices[mac] = _new_device(mac)
 
-        list(map(_handle, result))
+        _ = list(map(_handle, result))
         _LOGGER.info("There are %s devices found in wl", len(devices))
+        return devices
 
-    async def _get_arp(self, devices: Dict[str, Device]) -> None:
-        """Get arp."""
+    async def _get_arp(self, devices: dict[str, Device]) -> dict[str, Device]:
+        """
+        Add devices found in arp.
+
+        Args:
+            devices (dict[str, Device]): Currently known device list
+        """
         _LOGGER.info("get_arp")
         lines = await self._connection.run_command(Command.ARP)
         if not lines:
-            return
+            return devices
         result = await _parse_lines(lines, Regex.ARP)
 
-        def _handle(device: Dict[str, str]) -> None:
-            if device["mac"] is not None:
-                mac = device["mac"].upper()
-                devices[mac] = merge_device(
-                    devices[mac] if mac in devices else Device(mac),
-                    Device(
-                        mac,
-                        DeviceData(device["ip"]),
-                        Interface(device["interface"]),
-                    ),
-                )
+        def _handle(device: dict[str, str]) -> None:
+            mac = device["mac"].upper()
+            if mac not in devices:
+                devices[mac] = _new_device(mac)
+            devices[mac].device_data["ip"] = device["ip"]
+            devices[mac].interface["id"] = device["interface"]
 
-        list(map(_handle, result))
+        _ = list(map(_handle, result))
         _LOGGER.info("There are %s devices found in arp", len(devices))
+        return devices
 
-    async def _get_leases(self, devices: Dict[str, Device]) -> None:
-        """Get leases."""
+    async def _get_leases(
+        self, devices: dict[str, Device]
+    ) -> dict[str, Device]:
+        """
+        Add devices found in leases.
+
+        Args:
+            devices (dict[str, Device]): Currently known device list
+        """
         _LOGGER.info("get_leases")
         lines: Iterable[str] = await self._connection.run_command(
             Command.LEASES.format(self._settings.dnsmasq)
         )
         if not lines:
-            return
+            return devices
         lines = filter(lambda line: not line.startswith("duid "), lines)
         result = await _parse_lines(lines, Regex.LEASES)
 
-        def _handle(device: Dict[str, str]) -> None:
-            host = device["host"] if device["host"] != "*" else None
+        def _handle(device: dict[str, str]) -> None:
             mac = device["mac"].upper()
             if mac not in devices:
-                _LOGGER.debug(
-                    "Skipping %s its not in the device list, "
-                    "meaning its not currently precent",
-                    mac,
-                )
-                return
-            devices[mac] = merge_device(
-                devices[mac],
-                Device(
-                    mac,
-                    DeviceData(
-                        device["ip"],
-                        host,
-                    ),
-                ),
-            )
+                devices[mac] = _new_device(mac)
+            host = device.get("host")
+            if host is not None and host != "*":
+                devices[mac].device_data["name"] = host
 
-        list(map(_handle, result))
+            devices[mac].device_data["ip"] = device["ip"]
+
+        _ = list(map(_handle, result))
         _LOGGER.info("There are %s devices found after leases", len(devices))
+        return devices
 
-    async def _get_neigh(self, devices: Dict[str, Device]) -> None:
-        """Get neigh."""
+    async def _get_neigh(
+        self, devices: dict[str, Device]
+    ) -> dict[str, Device]:
+        """
+        Add devices found in neigh.
+
+        Args:
+            devices (dict[str, Device]): Currently known device list
+        """
         _LOGGER.info("get_neigh")
         lines = await self._connection.run_command(Command.IP_NEIGH)
         if not lines:
-            return
+            return devices
         result = await _parse_lines(lines, Regex.IP_NEIGH)
 
-        def _handle(device: Dict[str, str]) -> None:
+        def _handle(device: dict[str, str]) -> None:
             if not device.get("mac"):
                 return
             status = device["status"]
             mac = device["mac"].upper()
-            if status is None or status and status.upper() != "REACHABLE":
-                return
-            devices[mac] = merge_device(
-                devices[mac],
-                Device(
-                    mac,
-                    DeviceData(device["ip"]),
-                ),
+            if mac not in devices:
+                devices[mac] = _new_device(mac)
+            devices[mac].device_data["status"] = status
+            devices[mac].device_data["ip"] = device.get(
+                "ip", devices[mac].device_data["ip"]
             )
 
-        list(map(_handle, result))
+        _ = list(map(_handle, result))
         _LOGGER.info("There are %s devices found in neigh", len(devices))
+        return devices
 
-    async def _filter_dev_list(self, devices: Dict[str, Device]) -> None:
-        """Filter devices list using 'clientlist.json' files if available."""
+    async def _filter_dev_list(
+        self, devices: dict[str, Device]
+    ) -> dict[str, Device]:
+        """
+        Filter devices list using 'clientlist.json' file if available.
+
+        Args:
+            devices (dict[str, Device]): Currently known device list
+        """
         _LOGGER.info("filter_dev_list")
         lines = await self._connection.run_command(Command.CLIENTLIST)
         if not lines:
-            return
+            return devices
+
+        def _parse_client_json(data: str) -> None:
+            device_list = InterfaceJson(loads(data))
+            for interface_mac, interface in device_list.items():
+                for conn_type, conn_items in interface.items():
+                    for dev_mac in conn_items:
+                        mac = dev_mac.upper()
+                        device = conn_items[mac]
+                        ip = device.get("ip")
+                        if not isinstance(ip, str):
+                            ip = None
+                        rssi = device.get("rssi", None)
+                        if mac not in devices:
+                            devices[mac] = _new_device(mac)
+                        devices[mac].device_data["ip"] = ip
+                        devices[mac].device_data["rssi"] = (
+                            int(rssi) if rssi else None
+                        )
+                        devices[mac].interface["name"] = conn_type
+                        devices[mac].interface["mac"] = interface_mac
 
         try:
-            dev_list = json.loads(lines[0])
-        except (TypeError, ValueError):
-            _LOGGER.info("Unable to parse clientlist.json")
-            _LOGGER.debug(lines[0])
-            return
-
-        # parse client list
-        for interface_mac, interface in dev_list.items():
-            for conn_type, conn_items in interface.items():
-                for dev_mac in conn_items:
-                    mac = dev_mac.upper()
-                    device = conn_items[mac]
-                    ip = device.get("ip")
-                    rssi = device.get("rssi")
-                    devices[mac] = merge_device(
-                        devices[mac] if mac in devices else Device(mac),
-                        Device(
-                            mac,
-                            DeviceData(ip, None, rssi),
-                            Interface(None, conn_type, interface_mac),
-                        ),
-                    )
-
-        _LOGGER.debug(
-            "There are %s devices found after clientlist.json", len(devices)
-        )
+            _parse_client_json(lines[0])
+            _LOGGER.debug(
+                "There are %s devices found after clientlist.json",
+                len(devices),
+            )
+        except (TypeError, ValueError, AssertionError) as ex:
+            _LOGGER.warning("Unable to parse clientlist.json")
+            print(lines[0])
+            print(ex)
+        return devices
 
     async def get_connected_devices(
         self,
-    ) -> Dict[str, Device]:
+        reachable: bool = False,
+    ) -> dict[str, Device]:
         """
-        Retrieve data from ASUSWRT.
+        Retrieve devices and as much info as possible.
+
+        If Settings.require_ip is `True,
+            we filter out all devices that do not have ip mapped
 
         Calls various commands on the router and returns the superset of all
         responses. Some commands will not work on some routers.
+
+        Args:
+            reachable (bool): If true,
+                filter out all devices that have not REACHABLE as status
+
         """
-        devices: Dict[str, Device] = {}
-        await self._get_wl(devices)
+        devices: dict[str, Device] = await self._get_wl({})
         _LOGGER.debug(devices)
-        await self._get_arp(devices)
+        devices = await self._get_arp(devices)
         _LOGGER.debug(devices)
-        await self._get_neigh(devices)
+        devices = await self._get_neigh(devices)
         _LOGGER.debug(devices)
-        if self._settings.mode != "ap":
-            await self._get_leases(devices)
+        if self._settings.mode != Mode.AP:
+            devices = await self._get_leases(devices)
             _LOGGER.debug(devices)
 
-        await self._filter_dev_list(devices)
+        devices = await self._filter_dev_list(devices)
         _LOGGER.debug(devices)
+        if reachable:
+            devices = {
+                key: dev
+                for key, dev in devices.items()
+                if dev.device_data.get("status") == "REACHABLE"
+            }
         if not self._settings.require_ip:
             return devices
         return {
             key: dev
             for key, dev in devices.items()
-            if dev.device_data.ip is not None
+            if dev.device_data.get("ip") is not None
         }
-
-    async def get_bytes_total(
-        self,
-    ) -> Tuple[Optional[float], Optional[float]]:
-        """Retrieve total bytes (rx an tx) from ASUSWRT."""
-        _LOGGER.warning(
-            "get_bytes_total is deprecated, calculate this elsewhere"
-        )
-        return 0, 0
 
     @property
     async def rx(self) -> int:
@@ -410,11 +357,11 @@ class AsusWrt:
 
     async def get_current_transfer_rates(
         self,
-    ) -> Tuple[float, float]:
+    ) -> tuple[int, int]:
         """Get current transfer rates calculated in per second in bytes."""
         _now = time()
-        delay = _now - self._transfer_rates.last_check
-        self._transfer_rates.last_check = _now
+        delay = _now - self._last_transfer_rates_check
+        self._last_transfer_rates_check = _now
         eth0rx = eth0tx = 0
         vlanrx = vlantx = 0
 
@@ -424,7 +371,7 @@ class AsusWrt:
             return 0, 0
 
         for line in net_dev_lines[2:]:
-            parts = re.split(r"[\s:]+", line.strip())
+            parts = split(r"[\s:]+", line.strip())
             # NOTES:
             #  * assuming eth0 always comes before vlan1 in dev file
             #  * counted bytes wrap around at 0xFFFFFFFF
@@ -445,22 +392,21 @@ class AsusWrt:
         rx = int(handle32bitwrap(inetrx - self._transfer_rates.rx) / delay)
         tx = int(handle32bitwrap(inettx - self._transfer_rates.tx) / delay)
 
-        self._transfer_rates.rx = inetrx
-        self._transfer_rates.tx = inettx
+        self._transfer_rates = TransferRates(inetrx, inettx)
 
         return rx, tx
 
     async def current_transfer_human_readable(
         self,
-    ) -> Optional[tuple[str, str]]:
+    ) -> tuple[str, str] | None:
         """Get current transfer rates in a human readable format."""
         rx, tx = await self.get_current_transfer_rates()
 
-        if rx is not None and rx > 0 and tx is not None and tx > 0:
+        if rx and rx > 0 and tx and tx > 0:
             return f"{convert_size(rx)}/s", f" {convert_size(tx)}/s"
         return "0/s", "0/s"
 
-    async def get_loadavg(self) -> List[float]:
+    async def get_loadavg(self) -> list[float]:
         """Get loadavg."""
         loadavg = list(
             map(
@@ -474,22 +420,28 @@ class AsusWrt:
 
     async def add_dns_record(
         self, hostname: str, ipaddress: str
-    ) -> Optional[List[str]]:
-        """Add record to /etc/hosts and HUP dnsmask to catch this record."""
+    ) -> list[str] | None:
+        """
+        Add record to /etc/hosts and HUP dnsmask to catch this record.
+
+        Args:
+            hostname (str): Hostname to add
+            ipaddress (str): IP address to add
+        """
         return await self._connection.run_command(
             Command.ADDHOST.format(hostname=hostname, ipaddress=ipaddress)
         )
 
     async def get_interfaces_count(
         self,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, dict[str, int]]:
         """Get counters for all network interfaces."""
         net_dev_lines = await self._connection.run_command(Command.NETDEV)
         lines = map(
             lambda i: list(filter(lambda j: j != "", i.split(" "))),
             net_dev_lines[2:-1],
         )
-        interfaces: Iterable[Tuple[str, Any]] = map(
+        interfaces: Iterable[tuple[str, dict[str, int]]] = map(
             lambda i: (
                 i[0][0:-1],
                 dict(zip(NETDEV_FIELDS, map(int, i[1:]))),
@@ -498,56 +450,44 @@ class AsusWrt:
         )
         return dict(interfaces)
 
-    async def _find_temperature_commands(self) -> Dict[str, float]:
+    async def _find_temperature_commands(self) -> dict[str, float]:
         """Find which temperature commands work with the router, if any."""
-        ret: Dict[str, float] = {}
+        ret: dict[str, float] = {}
 
         for interface, commands in TEMP_COMMANDS.items():
             temp_command: TempCommand
             ret[interface] = 0.0
             for temp_command in commands:
                 try:
-                    result = await self._connection.run_command(
-                        temp_command.cli_command
+                    result = await _run_temp_command(
+                        self._connection, temp_command
                     )
-                    interface_temperature = result[0].split(" ")[
-                        temp_command.result_location
-                    ]
-                    if interface_temperature.isnumeric():
+                    if result:
                         self._temps_commands[interface] = temp_command
-                        print(interface_temperature)
-                        ret[interface] = temp_command.eval_function(
-                            float(interface_temperature)
-                        )
-                        print(ret[interface])
+                        ret[interface] = result
                         break
                 except (ValueError, IndexError, OSError):
                     continue
         return ret
 
-    async def get_temperature(self) -> Dict[str, float]:
-        """Get temperature for 2.4GHz/5.0GHz/CPU."""
-        result = {}
+    async def get_temperature(self) -> dict[str, float]:
+        """Get temperature values we can find."""
+        result: dict[str, float] = {}
         if not self._temps_commands:
-            print("finding commands")
             return await self._find_temperature_commands()
         for interface, command in self._temps_commands.items():
-            command_result: List[str] = (
-                await self._connection.run_command(str(command.cli_command))
-            )[0].split(" ")
-            result[interface] = float(
-                command_result[int(command.result_location)]
-            )
-            result[interface] = command.eval_function(float(result[interface]))
+            temp = await _run_temp_command(self._connection, command)
+            if temp:
+                result[interface] = temp
         return result
 
-    async def get_vpn_clients(self) -> List[Dict[str, str]]:
+    async def get_vpn_clients(self) -> list[dict[str, str]]:
         """Get current vpn clients."""
         data = await self.get_nvram("VPN")
         vpn_list = data["vpnc_clientlist"]
 
-        vpns = []
-        for m in re.finditer(Regex.VPN_LIST, vpn_list):
+        vpns: list[dict[str, str]] = []
+        for m in finditer(Regex.VPN_LIST, vpn_list):
             vpn_id = m.group("id")
             pid = await self._connection.run_command(
                 Command.GET_PID_OF.format(name=f"vpnclient{vpn_id}")
@@ -568,21 +508,29 @@ class AsusWrt:
 
         return vpns
 
-    async def start_vpn_client(self, vpn_id: int) -> List[str]:
-        """Start a vpn client by id."""
-        # stop all running vpn clients
+    async def start_vpn_client(self, vpn_id: int) -> list[str]:
+        """
+        Start a vpn client by id.
+
+        Args:
+            vpn_id (int): The id of the VPN service to start
+        """
         for no in range(VPN_COUNT):
-            await self._connection.run_command(
+            _ = await self._connection.run_command(
                 Command.VPN_STOP.format(id=no + 1)
             )
 
-        # actually start vpn
         return await self._connection.run_command(
             Command.VPN_START.format(id=vpn_id)
         )
 
-    async def stop_vpn_client(self, vpn_id: int) -> List[str]:
-        """Stop a vpn client by id."""
+    async def stop_vpn_client(self, vpn_id: int) -> list[str]:
+        """
+        Stop a vpn client by id.
+
+        Args:
+            vpn_id (int): The id of the VPN service to stop
+        """
         return await self._connection.run_command(
             Command.VPN_STOP.format(id=vpn_id)
         )

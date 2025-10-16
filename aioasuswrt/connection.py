@@ -1,16 +1,23 @@
 """Module for connections."""
 
-import abc
-import asyncio
-import logging
-from asyncio import IncompleteReadError, LimitOverrunError
+from abc import ABC, abstractmethod
+from asyncio import (
+    IncompleteReadError,
+    LimitOverrunError,
+    Lock,
+    open_connection,
+    wait_for,
+)
 from asyncio.streams import StreamReader, StreamWriter
+from logging import getLogger
 from math import floor
-from typing import List, Optional
+from typing import final, override
 
 from asyncssh import SSHClientConnection, connect, set_log_level
 
-_LOGGER = logging.getLogger(__name__)
+from .structure import AsyncSSHConnectKwargs, AuthConfig, ConnectionType
+
+_LOGGER = getLogger(__name__)
 
 _PATH_EXPORT_COMMAND: str = "PATH=$PATH:/bin:/usr/sbin:/sbin"
 set_log_level("WARNING")
@@ -20,32 +27,47 @@ class _CommandException(Exception):
     """Protected command exception."""
 
 
-class _BaseConnection(abc.ABC):
+class BaseConnection(ABC):
+    """Abstract class representation of a connection to the router."""
+
     def __init__(
         self,
         host: str,
-        port: int,
-        username: Optional[str] = None,
-        password: Optional[str] = None,
+        auth_config: AuthConfig,
     ):
-        self._host: str = host
-        self._port: int = port
-        self._username: Optional[str] = username
-        self._password: Optional[str] = password
+        """
+        Initiate the Connection object (not the connection).
 
-        self._io_lock = asyncio.Lock()
+        Args:
+            host (str): IP or hostname for the router
+            auth_config (AuthConfig): Authentication configuration
+        """
+        self._host: str = host
+        self._port: int
+        self._username: str = str(auth_config["username"])
+        self._password: str | None = auth_config.get("password")
+
+        self._io_lock: Lock = Lock()
 
     @property
     def description(self) -> str:
-        """Description of the connection."""
+        """Description of the connection (user@192.168.1.1:22)."""
         ret = f"{self._host}:{self._port}"
         if self._username:
             ret = f"{self._username}@{ret}"
 
         return ret
 
-    async def run_command(self, command: str, retry: bool = True) -> List[str]:
-        """Call a command using the connection."""
+    async def run_command(self, command: str) -> list[str]:
+        """
+        Call a command on the router and retreive the output.
+        Will call the command wrapped in a asyncio.Lock()
+        All exceptions are catched and logged with logging.exception(ex),
+            and in that case an empty list is returned.
+
+        Args:
+            command (str): The actual command to run
+        """
         async with self._io_lock:
             if not self.is_connected:
                 await self.connect()
@@ -55,167 +77,171 @@ class _BaseConnection(abc.ABC):
             except _CommandException as ex:
                 _LOGGER.exception(ex)
 
-        # The command failed
-        if retry:
-            _LOGGER.debug("Retrying command: %s", command)
-            return await self._call_command(command)
         return []
 
     async def connect(self) -> None:
-        """Connect to router."""
+        """
+        Connect to the router.
+        If a connection is already established we create a logging.warning.
+        Wrapping the io in asyncio.Lock
+        """
         if self.is_connected:
-            _LOGGER.debug(
+            _LOGGER.warning(
                 "Connection already established to: %s", self.description
             )
             return
 
-        await self._connect()
+        async with self._io_lock:
+            await self._connect()
 
     async def disconnect(self) -> None:
-        """Disconnect the client."""
+        """
+        Disconnect from the client.
+        Wrapping the io in a asyncio.Lock
+        """
         async with self._io_lock:
             self._disconnect()
 
-    @abc.abstractmethod
-    async def _call_command(self, command: str) -> List[str]:
-        """Call the command."""
+    @abstractmethod
+    async def _call_command(self, command: str) -> list[str]:
+        """Abstract call the command."""
 
-    @abc.abstractmethod
+    @abstractmethod
     async def _connect(self) -> None:
-        """Establish a connection."""
+        """Abstract establish a connection."""
 
-    @abc.abstractmethod
+    @abstractmethod
     def _disconnect(self) -> None:
-        """Disconnect."""
+        """Abstract disconnect."""
 
     @property
-    @abc.abstractmethod
+    @abstractmethod
     def is_connected(self) -> bool:
-        """Do we have a connection."""
+        """Abstract do we have a connection."""
 
 
-def create_connection(  # pylint: disable=too-many-arguments
+def create_connection(
     host: str,
-    *,
-    port: Optional[int],
-    username: Optional[str],
-    password: Optional[str],
-    ssh_key: Optional[str],
-    use_telnet: bool,
-) -> _BaseConnection:
-    """Create a connection to the router."""
-    if use_telnet:
-        return TelnetConnection(
-            host=host, port=port, username=username, password=password
-        )
-    return SshConnection(
-        host=host,
-        port=port,
-        username=username,
-        password=password,
-        ssh_key=ssh_key,
-    )
+    auth_config: AuthConfig,
+) -> BaseConnection:
+    """
+    Create a connection to the router.
+    A convinience function to get a new connection to the router.
+    Returns either a TelnetConnection or a SSHConnection.
+
+    Args:
+        auth_config (AuthConfig): The authentication configuration to use
+    """
+    if auth_config.get("connection_type", ConnectionType.SSH):
+        return TelnetConnection(host, auth_config)
+    return SshConnection(host, auth_config)
 
 
-class SshConnection(_BaseConnection):
+@final
+class SshConnection(BaseConnection):
     """Maintains an SSH connection to an ASUS-WRT router."""
 
-    def __init__(  # pylint: disable=too-many-arguments
+    def __init__(
         self,
         host: str,
-        *,
-        port: Optional[int] = None,
-        username: Optional[str] = None,
-        password: Optional[str] = None,
-        ssh_key: Optional[str] = None,
-        passphrase: Optional[str] = None,
+        auth_config: AuthConfig,
     ):
-        """Initialize the SSH connection properties."""
-        super().__init__(host, port or 22, username, password)
-        self._ssh_key = ssh_key
-        self._client: Optional[SSHClientConnection] = None
-        self._lock = asyncio.Lock()
-        self._passphrase: Optional[str] = passphrase
+        """
+        Initialize the SSH connection properties.
 
-    async def _call_command(self, command: str) -> List[str]:
+        Sets the port to 22 if not provided
+
+        Args:
+            host (str): The IP or hostname to use
+            auth_config (AuthConfig): The authentication configuration
+        """
+        self._port = auth_config.get("port", 22)
+        super().__init__(host, auth_config)
+        self._ssh_key = auth_config.get("ssh_key")
+        self._client: SSHClientConnection | None = None
+        self._passphrase = auth_config.get("passphrase")
+
+    @override
+    async def _call_command(self, command: str) -> list[str]:
         """
         Run commands through an SSH connection.
 
-        Connect to the SSH server if not currently connected, otherwise
-        use the existing connection.
+        Args:
+            command (str): The actual command to run
         """
         if not self._client:
             raise ConnectionError("Lost connection to router")
 
-        async with self._lock:
-            result = await asyncio.wait_for(
-                self._client.run(f"{_PATH_EXPORT_COMMAND} && {command}"),
-                9,
-            )
+        result = await wait_for(
+            self._client.run(f"{_PATH_EXPORT_COMMAND} && {command}"),
+            9,
+        )
         return list(str(result.stdout).split("\n"))
 
     @property
+    @override
     def is_connected(self) -> bool:
         """Do we have a connection."""
         return self._client is not None
 
+    @override
     async def _connect(self) -> None:
-        """Fetch the client or creates a new one."""
-        kwargs = {
-            "username": self._username,
-            "client_keys": [self._ssh_key] if self._ssh_key else None,
-            "port": self._port,
-            "password": self._password,
-            "passphrase": self._passphrase,
-            "known_hosts": None,
-            "server_host_key_algs": [
-                "ssh-rsa",
-                "rsa-sha2-256",
-                "rsa-sha2-512",
-                "ecdsa-sha2-nistp256",
-                "ecdsa-sha2-nistp384",
-                "ecdsa-sha2-nistp521",
-                "ssh-ed25519",
-                "ssh-ed448",
-            ],
-        }
-        async with self._lock:
-            if self._client:
-                _LOGGER.debug(
-                    "reconnecting; old connection is disconnected",
-                )
-                self._disconnect()
-            else:
-                _LOGGER.debug("reconnecting; no old connection existed")
-            self._client = await connect(self._host, **kwargs)
+        """Connects the ssh-client."""
+        if self._client:
             _LOGGER.debug(
-                "reconnected",
+                "reconnecting; old connection is disconnected",
             )
+            self._disconnect()
+        else:
+            _LOGGER.debug("reconnecting; no old connection existed")
 
+        kwargs = AsyncSSHConnectKwargs(
+            username=self._username,
+            client_keys=[self._ssh_key] if self._ssh_key else None,
+            port=self._port,
+            password=self._password,
+            passphrase=self._passphrase,
+        )
+        self._client = await connect(self._host, *kwargs)
+        _LOGGER.debug(
+            "reconnected",
+        )
+
+    @override
     def _disconnect(self) -> None:
+        """Disconnect and set self._client to None"""
         if self._client:
             self._client.close()
         self._client = None
 
 
-class TelnetConnection(_BaseConnection):
+@final
+class TelnetConnection(BaseConnection):
     """Maintains a Telnet connection to an ASUS-WRT router."""
 
     def __init__(
         self,
         host: str,
-        port: Optional[int],
-        username: Optional[str],
-        password: Optional[str],
+        auth_config: AuthConfig,
     ):
-        """Initialize the Telnet connection properties."""
-        super().__init__(host, port or 23, username, password)
-        self._reader: Optional[StreamReader] = None
-        self._writer: Optional[StreamWriter] = None
-        self._prompt_string = "".encode("ascii")
-        self._linebreak: Optional[float] = None
+        """
+        Initialize the Telnet connection properties.
 
-    async def _call_command(self, command: str) -> List[str]:
+        Sets the port to 110 if not provided.
+
+        Args:
+            host (str): IP or hostname for the connection
+            auth_config (AuthConfig): The authentication configuration to use
+        """
+        self._port = auth_config.get("port", 110)
+        super().__init__(host, auth_config)
+        self._reader: StreamReader | None = None
+        self._writer: StreamWriter | None = None
+        self._prompt_string: bytes = "".encode("ascii")
+        self._linebreak: float | None = None
+
+    @override
+    async def _call_command(self, command: str) -> list[str]:
         """Run a command through a Telnet connection."""
         try:
             if not self.is_connected:
@@ -231,7 +257,7 @@ class TelnetConnection(_BaseConnection):
             full_cmd = f"{_PATH_EXPORT_COMMAND} && {command}"
             self._writer.write((full_cmd + "\n").encode("ascii"))
             # And read back the data till the prompt string
-            data = await asyncio.wait_for(
+            data = await wait_for(
                 self._reader.readuntil(self._prompt_string), 9
             )
         except (BrokenPipeError, LimitOverrunError, IncompleteReadError) as ex:
@@ -252,24 +278,20 @@ class TelnetConnection(_BaseConnection):
         start_split = floor(cmd_len / self._linebreak) + 1
         return list(line.decode("utf-8") for line in data_list[start_split:-1])
 
-    async def connect(self) -> None:
-        """Connect to the ASUS-WRT Telnet server."""
-        async with self._io_lock:
-            await self._connect()
-
+    @override
     async def _connect(self) -> None:
         if self.is_connected:
             self._disconnect()
 
-        self._reader, self._writer = await asyncio.open_connection(
+        self._reader, self._writer = await open_connection(
             self._host, self._port
         )
 
         # Process the login
         # Enter the Username
         try:
-            await asyncio.wait_for(self._reader.readuntil(b"login: "), 9)
-        except asyncio.IncompleteReadError:
+            _ = await wait_for(self._reader.readuntil(b"login: "), 9)
+        except IncompleteReadError:
             _LOGGER.error(
                 "Unable to read from router on %s:%s", self._host, self._port
             )
@@ -281,7 +303,7 @@ class TelnetConnection(_BaseConnection):
         self._writer.write((self._username or "" + "\n").encode("ascii"))
 
         # Enter the password
-        await self._reader.readuntil(b"Password: ")
+        _ = await self._reader.readuntil(b"Password: ")
         self._writer.write((self._password or "" + "\n").encode("ascii"))
 
         # Now we can determine the prompt string for the commands.
@@ -328,10 +350,12 @@ class TelnetConnection(_BaseConnection):
         return linebreak
 
     @property
+    @override
     def is_connected(self) -> bool:
         """Do we have a connection."""
         return self._reader is not None and self._writer is not None
 
+    @override
     def _disconnect(self) -> None:
         """
         Disconnect the connection.

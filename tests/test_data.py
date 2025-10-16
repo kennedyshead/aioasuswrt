@@ -1,6 +1,6 @@
-from typing import List, Optional
+from copy import deepcopy
 
-from aioasuswrt.asuswrt import Device, DeviceData, Interface
+from aioasuswrt.asuswrt import _new_device
 
 # pylint: skip-file
 RX_DATA = ["2703926881", ""]
@@ -310,19 +310,19 @@ INTERFACES_COUNT = {
 }
 LOADAVG_DATA = ["0.23 0.50 0.68 2/167 13095"]
 MEMINFO_DATA = ["0.46 0.75 0.77 1/165 2609"]
-WL_DATA: List[Optional[str]] = [
+WL_DATA: list[str | None] = [
     "assoclist 01:02:03:04:06:08\r",
     "assoclist 08:09:10:11:12:14\r",
     "assoclist 08:09:10:11:12:15\r",
     "assoclist AB:CD:DE:AB:CD:EF\r",
 ]
-WL_MIISING_LINE = WL_DATA.copy()
+WL_MIISING_LINE = deepcopy(WL_DATA)
 WL_MIISING_LINE.append(None)
 WL_DEVICES = {
-    "01:02:03:04:06:08": Device("01:02:03:04:06:08"),
-    "08:09:10:11:12:14": Device("08:09:10:11:12:14"),
-    "08:09:10:11:12:15": Device("08:09:10:11:12:15"),
-    "AB:CD:DE:AB:CD:EF": Device("AB:CD:DE:AB:CD:EF"),
+    "01:02:03:04:06:08": _new_device("01:02:03:04:06:08"),
+    "08:09:10:11:12:14": _new_device("08:09:10:11:12:14"),
+    "08:09:10:11:12:15": _new_device("08:09:10:11:12:15"),
+    "AB:CD:DE:AB:CD:EF": _new_device("AB:CD:DE:AB:CD:EF"),
 }
 ARP_DATA = [
     "? (123.123.123.125) at 01:02:03:04:06:08 [ether]  on eth0\r",
@@ -332,36 +332,21 @@ ARP_DATA = [
     "? (172.16.10.2) at 00:25:90:12:2D:90 [ether]  on br0\r",
     "? (169.254.0.2) at a0:ad:9f:0f:03:d9 [ether] on eth.ai-10\r",
 ]
-ARP_DEVICES = {
-    "01:02:03:04:06:08": Device(
-        "01:02:03:04:06:08",
-        DeviceData("123.123.123.125"),
-        Interface("eth0"),
-    ),
-    "08:09:10:11:12:14": Device(
-        "08:09:10:11:12:14",
-        DeviceData("123.123.123.126"),
-        Interface("br0"),
-    ),
-    "08:09:10:11:12:15": Device(
-        "08:09:10:11:12:15",
-    ),
-    "AB:CD:DE:AB:CD:EF": Device(
-        "AB:CD:DE:AB:CD:EF",
-        DeviceData("123.123.123.128"),
-        Interface("br0"),
-    ),
-    "00:25:90:12:2D:90": Device(
-        "00:25:90:12:2D:90",
-        DeviceData("172.16.10.2"),
-        Interface("br0"),
-    ),
-    "A0:AD:9F:0F:03:D9": Device(
-        "A0:AD:9F:0F:03:D9",
-        DeviceData("169.254.0.2"),
-        Interface("eth.ai-10"),
-    ),
-}
+ARP_DEVICES = deepcopy(WL_DEVICES)
+ARP_DEVICES["01:02:03:04:06:08"].device_data["ip"] = "123.123.123.125"
+ARP_DEVICES["01:02:03:04:06:08"].interface["id"] = "eth0"
+ARP_DEVICES["08:09:10:11:12:14"].device_data["ip"] = "123.123.123.126"
+ARP_DEVICES["08:09:10:11:12:14"].interface["id"] = "br0"
+ARP_DEVICES["AB:CD:DE:AB:CD:EF"].device_data["ip"] = "123.123.123.128"
+ARP_DEVICES["AB:CD:DE:AB:CD:EF"].interface["id"] = "br0"
+ARP_DEVICES["00:25:90:12:2D:90"] = _new_device("00:25:90:12:2D:90")
+ARP_DEVICES["00:25:90:12:2D:90"].device_data["ip"] = "172.16.10.2"
+ARP_DEVICES["00:25:90:12:2D:90"].interface["id"] = "br0"
+ARP_DEVICES["A0:AD:9F:0F:03:D9"] = _new_device("A0:AD:9F:0F:03:D9")
+ARP_DEVICES["A0:AD:9F:0F:03:D9"].device_data["ip"] = "169.254.0.2"
+ARP_DEVICES["A0:AD:9F:0F:03:D9"].interface["id"] = "eth.ai-10"
+
+
 NEIGH_DATA = [
     "123.123.123.125 dev eth0 lladdr 01:02:03:04:06:08 REACHABLE\r",
     "123.123.123.126 dev br0 lladdr 08:09:10:11:12:14 REACHABLE\r",
@@ -371,71 +356,49 @@ NEIGH_DATA = [
     "fe80::feff:a6ff:feff:12ff dev br0 lladdr fc:ff:a6:ff:12:ff STALE\r",
     "169.254.0.2 dev eth.ai-10 lladdr a0:ad:9f:0f:03:d9 REACHABLE\r",
 ]
-NEIGH_DEVICES = {
-    "01:02:03:04:06:08": Device(
-        "01:02:03:04:06:08",
-        DeviceData("123.123.123.125"),
-        Interface("eth0"),
-    ),
-    "08:09:10:11:12:14": Device(
-        "08:09:10:11:12:14",
-        DeviceData("123.123.123.126"),
-        Interface("br0"),
-    ),
-    "08:09:10:11:12:15": Device(
-        "08:09:10:11:12:15",
-    ),
-    "AB:CD:DE:AB:CD:EF": Device(
-        "AB:CD:DE:AB:CD:EF",
-        DeviceData("123.123.123.128"),
-        Interface("br0"),
-    ),
-    "00:25:90:12:2D:90": Device(
-        "00:25:90:12:2D:90",
-        DeviceData("172.16.10.2"),
-        Interface("br0"),
-    ),
-    "A0:AD:9F:0F:03:D9": Device(
-        "A0:AD:9F:0F:03:D9",
-        DeviceData("169.254.0.2"),
-        Interface("eth.ai-10"),
-    ),
-}
+NEIGH_DEVICES = deepcopy(ARP_DEVICES)
+NEIGH_DEVICES["01:02:03:04:06:08"].device_data["status"] = "REACHABLE"
+NEIGH_DEVICES["08:09:10:11:12:14"].device_data["status"] = "REACHABLE"
+NEIGH_DEVICES["08:09:15:15:15:15"] = _new_device("08:09:15:15:15:15")
+NEIGH_DEVICES["08:09:15:15:15:15"].device_data["status"] = "DELAY"
+NEIGH_DEVICES["08:09:15:15:15:15"].device_data["ip"] = "123.123.123.129"
+NEIGH_DEVICES["A0:AD:9F:0F:03:D9"].device_data["status"] = "REACHABLE"
+NEIGH_DEVICES["AB:CD:DE:AB:CD:EF"].device_data["status"] = "REACHABLE"
+NEIGH_DEVICES["FC:FF:A6:FF:12:FF"] = _new_device("FC:FF:A6:FF:12:FF")
+NEIGH_DEVICES["FC:FF:A6:FF:12:FF"].device_data["ip"] = (
+    "fe80::feff:a6ff:feff:12ff"
+)
+NEIGH_DEVICES["FC:FF:A6:FF:12:FF"].device_data["status"] = "STALE"
+
 LEASES_DATA = [  # android device is not present
     "51910 01:02:03:04:06:08 123.123.123.125 TV 01:02:03:04:06:08\r",
-    "79986 01:02:03:04:06:10 123.123.123.127 android 01:02:03:04:06:15\r",
+    "79986 01:02:03:04:06:10 123.123.123.127 android 01:02:03:04:06:10\r",
     "23523 08:09:10:11:12:14 123.123.123.126 * 08:09:10:11:12:14\r",
 ]
-LEASES_DEVICES = {
-    "01:02:03:04:06:08": Device(
-        "01:02:03:04:06:08",
-        DeviceData("123.123.123.125", "TV"),
-        Interface("eth0"),
-    ),
-    "08:09:10:11:12:14": Device(
-        "08:09:10:11:12:14",
-        DeviceData("123.123.123.126"),
-        Interface("br0"),
-    ),
-    "08:09:10:11:12:15": Device(
-        "08:09:10:11:12:15",
-    ),
-    "AB:CD:DE:AB:CD:EF": Device(
-        "AB:CD:DE:AB:CD:EF",
-        DeviceData("123.123.123.128"),
-        Interface("br0"),
-    ),
-    "00:25:90:12:2D:90": Device(
-        "00:25:90:12:2D:90",
-        DeviceData("172.16.10.2"),
-        Interface("br0"),
-    ),
-    "A0:AD:9F:0F:03:D9": Device(
-        "A0:AD:9F:0F:03:D9",
-        DeviceData("169.254.0.2"),
-        Interface("eth.ai-10"),
-    ),
-}
-WAKE_DEVICES_AP = NEIGH_DEVICES.copy()
-WAKE_DEVICES_AP.pop("08:09:10:11:12:15")
-WAKE_DEVICES_AP_NO_IP = NEIGH_DEVICES.copy()
+LEASES_DEVICES = deepcopy(NEIGH_DEVICES)
+LEASES_DEVICES["01:02:03:04:06:08"].device_data["name"] = "TV"
+LEASES_DEVICES["01:02:03:04:06:10"] = _new_device("01:02:03:04:06:10")
+LEASES_DEVICES["01:02:03:04:06:10"].device_data["ip"] = "123.123.123.127"
+LEASES_DEVICES["01:02:03:04:06:10"].device_data["name"] = "android"
+
+
+WAKE_DEVICES_AP = deepcopy(NEIGH_DEVICES)
+WAKE_DEVICES_AP["01:02:03:04:06:08"].interface["name"] = "2G"
+WAKE_DEVICES_AP["01:02:03:04:06:08"].interface["mac"] = "A2:2A:54:EC:20:3F"
+WAKE_DEVICES_AP["01:02:03:04:06:08"].device_data["rssi"] = -83
+WAKE_DEVICES_AP["08:09:15:15:15:15"].interface["name"] = "wired_mac"
+WAKE_DEVICES_AP["08:09:15:15:15:15"].interface["mac"] = "A2:2A:54:EC:20:3F"
+WAKE_DEVICES_AP["08:09:10:11:12:14"].interface["name"] = "5G"
+WAKE_DEVICES_AP["08:09:10:11:12:14"].interface["mac"] = "A2:2A:54:EC:20:3F"
+WAKE_DEVICES_AP["08:09:10:11:12:14"].device_data["rssi"] = -68
+
+WAKE_DEVICES_AP_NO_IP = deepcopy(WAKE_DEVICES_AP)
+
+CLIENTLIST_DATA = [
+    (
+        '{"A2:2A:54:EC:20:3F":{"2G":{"01:02:03:04:06:08":'
+        '{"ip":"123.123.123.125","rssi":"-83"}},"5G":{"08:09:10:11:12:14":'
+        '{"ip":"123.123.123.126","rssi": "-68"}},'
+        '"wired_mac":{"08:09:15:15:15:15":{"ip":"123.123.123.129"}}}}'
+    )
+]
