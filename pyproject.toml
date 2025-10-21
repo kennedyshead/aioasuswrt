@@ -55,8 +55,8 @@ warn_unreachable = true
 explicit_package_bases = true
 strict = true
 follow_imports = "silent"
-exclude = ["^setup.py$", "build", "tests"]
-mypy_path = "$MYPY_CONFIG_FILE_DIR/melissa"
+exclude = ["build", "tests"]
+mypy_path = "$MYPY_CONFIG_FILE_DIR/aioasuswrt"
 
 [[tool.mypy.overrides]]
 module = ["asyncssh"]
