@@ -1,4 +1,8 @@
 # AioAsusWRT
+# Moving
+
+I have come to the decision that I do not want to use github for my projects going forward, there is just to much corporate (closed source) AI going on.
+I will prepare a move and as soon as I am done I will update with links and more information.
 
 ![Python package](https://github.com/kennedyshead/aioasuswrt/workflows/Python%20package/badge.svg) [![Upload Python Package](https://github.com/kennedyshead/aioasuswrt/actions/workflows/python-publish.yml/badge.svg)](https://github.com/kennedyshead/aioasuswrt/actions/workflows/python-publish.yml)
 
