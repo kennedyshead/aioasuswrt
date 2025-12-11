@@ -22,11 +22,6 @@ def connect_to_router(
         auth_config (AuthConfig): authentication configuration
         settings (Settings): aioasuswrt settings
     """
-    auth_config["port"] = (
-        110
-        and not auth_config.get("port")
-        and auth_config.get("connection_type") == ConnectionType.TELNET
-    )
     return AsusWrt(
         host,
         auth_config,
