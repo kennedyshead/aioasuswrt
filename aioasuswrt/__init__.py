@@ -11,7 +11,7 @@ except PackageNotFoundError:
     __version__ = "dev"
 
 
-async def connect_to_router(
+def connect_to_router(
     host: str, auth_config: AuthConfig, settings: Settings | None
 ) -> AsusWrt:
     """
