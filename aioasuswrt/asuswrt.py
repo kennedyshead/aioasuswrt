@@ -115,6 +115,10 @@ class AsusWrt:
             auth_config,
         )
 
+    async def connect(self) -> None:
+        """Connect to router."""
+        await self._connection.connect()
+
     @property
     def wan_interface(self) -> str:
         """Wan interface property."""

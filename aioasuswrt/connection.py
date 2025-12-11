@@ -1,5 +1,6 @@
 """Module for connections."""
 
+import math
 from abc import ABC, abstractmethod
 from asyncio import (
     IncompleteReadError,
@@ -14,6 +15,7 @@ from math import floor
 from typing import final, override
 
 from asyncssh import SSHClientConnection, connect, set_log_level
+from constant import ALLOWED_KEY_HASHES
 
 from .structure import AsyncSSHConnectKwargs, AuthConfig, ConnectionType
 
@@ -68,10 +70,10 @@ class BaseConnection(ABC):
         Args:
             command (str): The actual command to run
         """
-        async with self._io_lock:
-            if not self.is_connected:
-                await self.connect()
+        if not self.is_connected:
+            await self.connect()
 
+        async with self._io_lock:
             try:
                 return await self._call_command(command)
             except _CommandException as ex:
@@ -132,9 +134,9 @@ def create_connection(
     Args:
         auth_config (AuthConfig): The authentication configuration to use
     """
-    if auth_config.get("connection_type") == ConnectionType.TELNET:
-        return TelnetConnection(host, auth_config)
-    return SshConnection(host, auth_config)
+    if auth_config.get("connection_type") == ConnectionType.SSH:
+        return SshConnection(host, auth_config)
+    return TelnetConnection(host, auth_config)
 
 
 @final
@@ -155,11 +157,12 @@ class SshConnection(BaseConnection):
             host (str): The IP or hostname to use
             auth_config (AuthConfig): The authentication configuration
         """
-        self._port = auth_config.get("port", 22)
+        self._port = auth_config.get("port") or 22
         super().__init__(host, auth_config)
         self._ssh_key = auth_config.get("ssh_key")
         self._client: SSHClientConnection | None = None
         self._passphrase = auth_config.get("passphrase")
+        self._known_hosts: list[str] | None = None
 
     @override
     async def _call_command(self, command: str) -> list[str]:
@@ -170,7 +173,7 @@ class SshConnection(BaseConnection):
             command (str): The actual command to run
         """
         if not self._client:
-            raise ConnectionError("Lost connection to router")
+            raise ConnectionError("Not connected to ssh")
 
         result = await wait_for(
             self._client.run(f"{_PATH_EXPORT_COMMAND} && {command}"),
@@ -188,24 +191,18 @@ class SshConnection(BaseConnection):
     async def _connect(self) -> None:
         """Connects the ssh-client."""
         if self._client:
-            _LOGGER.debug(
-                "reconnecting; old connection is disconnected",
-            )
             self._disconnect()
-        else:
-            _LOGGER.debug("reconnecting; no old connection existed")
 
         kwargs = AsyncSSHConnectKwargs(
             username=self._username,
-            client_keys=[self._ssh_key] if self._ssh_key else None,
             port=self._port,
+            server_host_key_algs=ALLOWED_KEY_HASHES,
             password=self._password,
             passphrase=self._passphrase,
+            known_hosts=self._known_hosts,
+            client_keys=[self._ssh_key] if self._ssh_key else None,
         )
-        self._client = await connect(self._host, *kwargs)
-        _LOGGER.debug(
-            "reconnected",
-        )
+        self._client = await connect(self._host, **kwargs)
 
     @override
     def _disconnect(self) -> None:
@@ -233,7 +230,7 @@ class TelnetConnection(BaseConnection):
             host (str): IP or hostname for the connection
             auth_config (AuthConfig): The authentication configuration to use
         """
-        self._port = auth_config.get("port", 110)
+        self._port = auth_config.get("port") or 110
         super().__init__(host, auth_config)
         self._reader: StreamReader | None = None
         self._writer: StreamWriter | None = None
@@ -262,11 +259,11 @@ class TelnetConnection(BaseConnection):
             )
         except (BrokenPipeError, LimitOverrunError, IncompleteReadError) as ex:
             # Writing has failed, Let's close and retry if necessary
-            _LOGGER.warning("connection is lost to host.")
+            _LOGGER.warning("Connection is lost to host")
             self._disconnect()
             raise _CommandException from ex
         except TimeoutError as ex:
-            _LOGGER.error("Host timeout.")
+            _LOGGER.error("Host timeout")
             self._disconnect()
             raise _CommandException from ex
 
@@ -297,7 +294,7 @@ class TelnetConnection(BaseConnection):
             )
             return
         except TimeoutError:
-            _LOGGER.error("Host timeout.")
+            _LOGGER.error("Host timeout")
             self._disconnect()
 
         self._writer.write((self._username or "" + "\n").encode("ascii"))
@@ -333,7 +330,7 @@ class TelnetConnection(BaseConnection):
         data = input_bytes.decode("utf-8").replace("\r", "").split("\n")
         if len(data) == 1:
             # There was no split, so assume infinite
-            linebreak = float("inf")
+            linebreak = math.inf
         else:
             # The linebreak is the length of the prompt string + the first line
             linebreak = len(self._prompt_string) + len(data[0])

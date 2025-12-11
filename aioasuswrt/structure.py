@@ -13,25 +13,16 @@ InterfaceJson: TypeAlias = dict[
 ]
 
 
-class AsyncSSHConnectKwargs(NamedTuple):
+class AsyncSSHConnectKwargs(TypedDict):
     """Kwargs mapping for the asyncssh.connect method."""
 
     username: str
-    client_keys: list[str] | None
     port: int
+    server_host_key_algs: list[str]
     password: str | None
     passphrase: str | None
-    known_host: list[str] | None = None
-    server_host_key_algs: list[str] = [
-        "ssh-rsa",
-        "rsa-sha2-256",
-        "rsa-sha2-512",
-        "ecdsa-sha2-nistp256",
-        "ecdsa-sha2-nistp384",
-        "ecdsa-sha2-nistp521",
-        "ssh-ed25519",
-        "ssh-ed448",
-    ]
+    known_hosts: list[str] | None
+    client_keys: list[str] | None
 
 
 class Interface(TypedDict):
