@@ -396,7 +396,7 @@ class AsusWrt:
 
         self._transfer_rates = TransferRates(inetrx, inettx)
 
-        return rx, tx
+        return rx if rx > 0 else 0, tx if tx > 0 else 0
 
     async def current_transfer_human_readable(
         self,
