@@ -36,11 +36,9 @@ async def _run_temp_command(
     command_result: list[str] = (
         await api.run_command(str(command.cli_command))
     )[0].split(" ")
-    print(command_result)
-    print(command.result_location)
     result = command_result[int(command.result_location)]
     if result.isnumeric():
-        return command.eval_function(float(result))
+        return float(command.eval_function(float(result)))
     return None
 
 
@@ -120,7 +118,7 @@ class AsusWrt:
     @property
     def wan_interface(self) -> str:
         """Wan interface property."""
-        return self._settings.wan_interface
+        return str(self._settings.wan_interface)
 
     async def get_nvram(self, parameter_to_fetch: str) -> dict[str, str]:
         """
@@ -348,12 +346,12 @@ class AsusWrt:
     @property
     async def rx(self) -> int:
         """Get current RX total given in bytes."""
-        return self._transfer_rates.rx
+        return int(self._transfer_rates.rx)
 
     @property
     async def tx(self) -> int:
         """Get current RX total given in bytes."""
-        return self._transfer_rates.tx
+        return int(self._transfer_rates.tx)
 
     async def get_current_transfer_rates(
         self,
@@ -428,8 +426,10 @@ class AsusWrt:
             hostname (str): Hostname to add
             ipaddress (str): IP address to add
         """
-        return await self._connection.run_command(
-            Command.ADDHOST.format(hostname=hostname, ipaddress=ipaddress)
+        return list(
+            await self._connection.run_command(
+                Command.ADDHOST.format(hostname=hostname, ipaddress=ipaddress)
+            )
         )
 
     async def get_interfaces_count(
@@ -520,8 +520,10 @@ class AsusWrt:
                 Command.VPN_STOP.format(id=no + 1)
             )
 
-        return await self._connection.run_command(
-            Command.VPN_START.format(id=vpn_id)
+        return list(
+            await self._connection.run_command(
+                Command.VPN_START.format(id=vpn_id)
+            )
         )
 
     async def stop_vpn_client(self, vpn_id: int) -> list[str]:
@@ -531,14 +533,16 @@ class AsusWrt:
         Args:
             vpn_id (int): The id of the VPN service to stop
         """
-        return await self._connection.run_command(
-            Command.VPN_STOP.format(id=vpn_id)
+        return list(
+            await self._connection.run_command(
+                Command.VPN_STOP.format(id=vpn_id)
+            )
         )
 
     @property
     def is_connected(self) -> bool:
         """Is connected property."""
-        return self._connection.is_connected
+        return bool(self._connection.is_connected)
 
     async def disconnect(self) -> None:
         """Disconnect from router."""
