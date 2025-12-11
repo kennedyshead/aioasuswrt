@@ -132,7 +132,7 @@ def create_connection(
     Args:
         auth_config (AuthConfig): The authentication configuration to use
     """
-    if auth_config.get("connection_type", ConnectionType.SSH):
+    if auth_config.get("connection_type") == ConnectionType.TELNET:
         return TelnetConnection(host, auth_config)
     return SshConnection(host, auth_config)
 
