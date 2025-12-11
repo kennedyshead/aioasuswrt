@@ -15,8 +15,8 @@ from math import floor
 from typing import final, override
 
 from asyncssh import SSHClientConnection, connect, set_log_level
-from constant import ALLOWED_KEY_HASHES
 
+from .constant import ALLOWED_KEY_HASHES
 from .structure import AsyncSSHConnectKwargs, AuthConfig, ConnectionType
 
 _LOGGER = getLogger(__name__)
