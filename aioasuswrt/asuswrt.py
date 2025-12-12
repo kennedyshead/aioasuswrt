@@ -422,7 +422,7 @@ class AsusWrt:
             return f"{convert_size(rx)}/s", f" {convert_size(tx)}/s"
         return "0/s", "0/s"
 
-    async def get_loadavg(self) -> list[float]:
+    async def get_loadavg(self) -> dict[str, float]:
         """Get loadavg."""
         loadavg = list(
             map(
@@ -432,7 +432,10 @@ class AsusWrt:
                 )[0:3],
             )
         )
-        return loadavg
+        _keys = ["sensor_load_avg1", "sensor_load_avg5", "sensor_load_avg15"]
+        return {
+            f"{_keys[index]}": loadavg[index] for index in range(len(loadavg))
+        }
 
     async def add_dns_record(
         self, hostname: str, ipaddress: str
