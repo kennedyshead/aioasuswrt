@@ -445,13 +445,25 @@ class AsusWrt:
             _LOGGER.warning("No devices found in router")
             return data
 
-        for item in GET_LIST[to_get]:
-            regex = _NVRAM_REGEX.format(item)
+        try:
+            items = GET_LIST[to_get]
+        except KeyError:
+            _LOGGER.info("Cant get %s value", to_get)
+            return data
+
+        for item in items:
+            try:
+                regex = _NVRAM_REGEX.format(item)
+            except KeyError:
+                _LOGGER.info("Cant format %s", item)
+                continue
+
             for line in lines:
                 result = re.findall(regex, line)
                 if result:
                     data[item] = result[0]
                     break
+
         return data
 
     async def async_get_wl(self, devices: Dict[str, Device]) -> None:
