@@ -1,10 +1,12 @@
-Version pre-2.0.0
+Version 2.0.5
+* Handle router disconnects
+
+Version 2.0.4
 * Splitting configs into dataclasses
 * Modern typing
 * Refactor tests to actually check outcome after all the different router querys are executed.
 * Fixing bugs for collected devices in `neigh` command
 * Move commands to its own module
-* TBA...
 
 
 Version 1.5.1
