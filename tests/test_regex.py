@@ -271,7 +271,11 @@ async def test_get_loadavg(mocker: Any) -> None:
         ),
     )
     data = await scanner.get_loadavg()
-    assert data == [0.23, 0.5, 0.68]
+    assert data == {
+        "sensor_load_avg1": 0.23,
+        "sensor_load_avg15": 0.68,
+        "sensor_load_avg5": 0.5,
+    }
 
 
 @pytest.mark.asyncio
