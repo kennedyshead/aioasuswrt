@@ -1,11 +1,10 @@
-Version pre-2.0.0
+Version 2.0.4
 * Splitting configs into dataclasses
 * Modern typing
-* Refactor tests to actually check outcome after all the different router querys are executed.
-* Fixing bugs for collected devices in `neigh` command
-* Move commands to its own module
-* TBA...
-
+* Refactor tests for listing devices, now it actually check outcome after all the different router querys combined.
+* Refactor sensor return values to match asusrouter (Maintaining the "legacy" things in hass is really a hazzle)
+* asyncio._lock was used to eagerly, now its only used when connecting and when calling a command.
+* minimize iterations over lists by using iterators and generators as much as possible
 
 Version 1.5.1
 * Adding py.typed
