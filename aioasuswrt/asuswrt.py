@@ -341,7 +341,7 @@ class AsusWrt:
             devices = {
                 key: dev
                 for key, dev in devices.items()
-                if dev.device_data.get("status") == "REACHABLE"
+                if dev.device_data.get("status") not in ["FAILED", "STALE"]
             }
         if not self._settings.require_ip:
             return devices
