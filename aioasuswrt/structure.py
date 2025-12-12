@@ -117,7 +117,7 @@ class AuthConfig(TypedDict):
     connection_type: ConnectionType | None
     ssh_key: str | None
     passphrase: str | None
-    port: int
+    port: int | None
 
 
 class Mode(StrEnum):
