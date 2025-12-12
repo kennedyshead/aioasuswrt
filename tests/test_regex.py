@@ -18,7 +18,7 @@ from tests.test_data import (
     ARP_DATA,
     ARP_DEVICES,
     CLIENTLIST_DATA,
-    INTERFACES_COUNT,
+    INTERFACES,
     LEASES_DATA,
     LEASES_DEVICES,
     LOADAVG_DATA,
@@ -280,7 +280,7 @@ async def test_get_loadavg(mocker: Any) -> None:
 
 @pytest.mark.asyncio
 async def test_get_interfaces_counts(mocker: Any) -> None:
-    """Test getting loadavg."""
+    """Test getting interfaces."""
     mock_run_cmd(mocker, [NETDEV_DATA])
     scanner = AsusWrt(
         host="localhost",
@@ -294,4 +294,4 @@ async def test_get_interfaces_counts(mocker: Any) -> None:
         ),
     )
     data = await scanner.get_interfaces_count()
-    assert data == INTERFACES_COUNT
+    assert len(INTERFACES) == data

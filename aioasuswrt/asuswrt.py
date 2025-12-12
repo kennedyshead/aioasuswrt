@@ -33,12 +33,13 @@ _LOGGER = getLogger(__name__)
 async def _run_temp_command(
     api: BaseConnection, command: TempCommand
 ) -> float | None:
-    command_result: list[str] = (
-        await api.run_command(str(command.cli_command))
-    )[0].split(" ")
-    result = command_result[int(command.result_location)]
-    if result.isnumeric():
-        return float(command.eval_function(float(result)))
+    command_result: list[str] | None = await api.run_command(
+        str(command.cli_command)
+    )
+    if command_result:
+        result = command_result[0].split(" ")[int(command.result_location)]
+        if result.isnumeric():
+            return float(command.eval_function(float(result)))
     return None
 
 
@@ -125,7 +126,9 @@ class AsusWrt:
         """Wan interface property."""
         return str(self._settings.wan_interface)
 
-    async def get_nvram(self, parameter_to_fetch: str) -> dict[str, str]:
+    async def get_nvram(
+        self, parameter_to_fetch: str
+    ) -> dict[str, str] | None:
         """
         Get nvram value.
 
@@ -135,12 +138,13 @@ class AsusWrt:
         data: dict[str, str] = {}
         target: list[str] | None = getattr(Nvram, parameter_to_fetch, None)
         if not isinstance(target, list):
-            return data
+            return None
 
         lines = await self._connection.run_command(Command.NVRAM)
         if not lines:
             _LOGGER.warning("No devices found in router")
-            return data
+            return None
+
         for item in target:
             regex = Regex.NVRAM.format(item)
             for line in lines:
@@ -205,7 +209,7 @@ class AsusWrt:
             devices (dict[str, Device]): Currently known device list
         """
         _LOGGER.info("get_leases")
-        lines: Iterable[str] = await self._connection.run_command(
+        lines: Iterable[str] | None = await self._connection.run_command(
             Command.LEASES.format(self._settings.dnsmasq)
         )
         if not lines:
@@ -243,16 +247,15 @@ class AsusWrt:
         result = await _parse_lines(lines, Regex.IP_NEIGH)
 
         def _handle(device: dict[str, str]) -> None:
-            if not device.get("mac"):
-                return
-            status = device["status"]
-            mac = device["mac"].upper()
-            if mac not in devices:
-                devices[mac] = _new_device(mac)
-            devices[mac].device_data["status"] = status
-            devices[mac].device_data["ip"] = device.get(
-                "ip", devices[mac].device_data["ip"]
-            )
+            if device.get("mac"):
+                status = device["status"]
+                mac = device["mac"].upper()
+                if mac not in devices:
+                    devices[mac] = _new_device(mac)
+                devices[mac].device_data["status"] = status
+                devices[mac].device_data["ip"] = device.get(
+                    "ip", devices[mac].device_data["ip"]
+                )
 
         _ = list(map(_handle, result))
         _LOGGER.info("There are %s devices found in neigh", len(devices))
@@ -360,7 +363,7 @@ class AsusWrt:
 
     async def get_current_transfer_rates(
         self,
-    ) -> dict[str, int]:
+    ) -> dict[str, int] | None:
         """Get current transfer rates calculated in per second in bytes."""
         _now = time()
         delay = _now - self._last_transfer_rates_check
@@ -371,7 +374,7 @@ class AsusWrt:
         net_dev_lines = await self._connection.run_command(Command.NETDEV)
         if not net_dev_lines:
             _LOGGER.info("Unable to run %s", Command.NETDEV)
-            return cast(dict[str, int], TransferRates(0, 0)._asdict())
+            return None
 
         for line in net_dev_lines[2:]:
             parts = split(r"[\s:]+", line.strip())
@@ -416,26 +419,34 @@ class AsusWrt:
     ) -> tuple[str, str] | None:
         """Get current transfer rates in a human readable format."""
         _rates = await self.get_current_transfer_rates()
+        if not _rates:
+            return None
         rx = _rates.get("rx")
         tx = _rates.get("tx")
         if rx and rx > 0 and tx and tx > 0:
             return f"{convert_size(rx)}/s", f" {convert_size(tx)}/s"
         return "0/s", "0/s"
 
-    async def get_loadavg(self) -> dict[str, float]:
+    async def get_loadavg(self) -> dict[str, float] | None:
         """Get loadavg."""
-        loadavg = list(
-            map(
-                float,
-                (await self._connection.run_command(Command.LOADAVG))[0].split(
-                    " "
-                )[0:3],
+        _loadavg = await self._connection.run_command(Command.LOADAVG)
+        if _loadavg:
+            loadavg = list(
+                map(
+                    float,
+                    _loadavg[0].split(" ")[0:3],
+                )
             )
-        )
-        _keys = ["sensor_load_avg1", "sensor_load_avg5", "sensor_load_avg15"]
-        return {
-            f"{_keys[index]}": loadavg[index] for index in range(len(loadavg))
-        }
+            _keys = [
+                "sensor_load_avg1",
+                "sensor_load_avg5",
+                "sensor_load_avg15",
+            ]
+            return {
+                f"{_keys[index]}": loadavg[index]
+                for index in range(len(loadavg))
+            }
+        return None
 
     async def add_dns_record(
         self, hostname: str, ipaddress: str
@@ -447,31 +458,34 @@ class AsusWrt:
             hostname (str): Hostname to add
             ipaddress (str): IP address to add
         """
-        return list(
-            await self._connection.run_command(
-                Command.ADDHOST.format(hostname=hostname, ipaddress=ipaddress)
-            )
+        _records: list[str] | None = await self._connection.run_command(
+            Command.ADDHOST.format(hostname=hostname, ipaddress=ipaddress)
         )
+        if _records:
+            return _records
+        return None
 
     async def get_interfaces_count(
         self,
-    ) -> dict[str, dict[str, int]]:
+    ) -> int | None:
         """Get counters for all network interfaces."""
         net_dev_lines = await self._connection.run_command(Command.NETDEV)
-        lines = map(
-            lambda i: list(filter(lambda j: j != "", i.split(" "))),
-            net_dev_lines[2:-1],
-        )
-        interfaces: Iterable[tuple[str, dict[str, int]]] = map(
-            lambda i: (
-                i[0][0:-1],
-                dict(zip(NETDEV_FIELDS, map(int, i[1:]))),
-            ),
-            lines,
-        )
-        return dict(interfaces)
+        if net_dev_lines:
+            lines = map(
+                lambda i: list(filter(lambda j: j != "", i.split(" "))),
+                net_dev_lines[2:-1],
+            )
+            interfaces: Iterable[tuple[str, dict[str, int]]] = map(
+                lambda i: (
+                    i[0][0:-1],
+                    dict(zip(NETDEV_FIELDS, map(int, i[1:]))),
+                ),
+                lines,
+            )
+            return len(list(interfaces)) if interfaces else None
+        return None
 
-    async def _find_temperature_commands(self) -> dict[str, float]:
+    async def _find_temperature_commands(self) -> dict[str, float] | None:
         """Find which temperature commands work with the router, if any."""
         ret: dict[str, float] = {}
 
@@ -489,9 +503,11 @@ class AsusWrt:
                         break
                 except (ValueError, IndexError, OSError):
                     continue
-        return ret
+        if len(ret) > 0:
+            return ret
+        return None
 
-    async def get_temperature(self) -> dict[str, float]:
+    async def get_temperature(self) -> dict[str, float] | None:
         """Get temperature values we can find."""
         result: dict[str, float] = {}
         if not self._temps_commands:
@@ -500,11 +516,16 @@ class AsusWrt:
             temp = await _run_temp_command(self._connection, command)
             if temp:
                 result[interface] = temp
-        return result
+        if len(result) > 0:
+            return result
+        return None
 
-    async def get_vpn_clients(self) -> list[dict[str, str]]:
+    async def get_vpn_clients(self) -> list[dict[str, str]] | None:
         """Get current vpn clients."""
         data = await self.get_nvram("VPN")
+        if not data:
+            return None
+
         vpn_list = data["vpnc_clientlist"]
 
         vpns: list[dict[str, str]] = []
@@ -526,10 +547,11 @@ class AsusWrt:
                 vpn["state"] = "on"
 
             vpns.append(vpn)
+        if len(vpns) > 0:
+            return vpns
+        return None
 
-        return vpns
-
-    async def start_vpn_client(self, vpn_id: int) -> list[str]:
+    async def start_vpn_client(self, vpn_id: int) -> list[str] | None:
         """
         Start a vpn client by id.
 
@@ -540,25 +562,22 @@ class AsusWrt:
             _ = await self._connection.run_command(
                 Command.VPN_STOP.format(id=no + 1)
             )
-
-        return list(
-            await self._connection.run_command(
-                Command.VPN_START.format(id=vpn_id)
-            )
+        ret: list[str] | None = await self._connection.run_command(
+            Command.VPN_START.format(id=vpn_id)
         )
+        return ret
 
-    async def stop_vpn_client(self, vpn_id: int) -> list[str]:
+    async def stop_vpn_client(self, vpn_id: int) -> list[str] | None:
         """
         Stop a vpn client by id.
 
         Args:
             vpn_id (int): The id of the VPN service to stop
         """
-        return list(
-            await self._connection.run_command(
-                Command.VPN_STOP.format(id=vpn_id)
-            )
+        ret: list[str] | None = await self._connection.run_command(
+            Command.VPN_STOP.format(id=vpn_id)
         )
+        return ret
 
     @property
     def is_connected(self) -> bool:

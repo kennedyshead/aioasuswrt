@@ -36,7 +36,7 @@ NETDEV_DATA = [
     "ds0.1:       0       0    0    0    0     0          0         0 102404809  805208    0    0    0     0       0          0",
     " tun21:       0       0    0    0    0     0          0         0        0       0    0    0    0     0       0          0",
 ]
-INTERFACES_COUNT = {
+INTERFACES = {
     "lo": {
         "tx_bytes": 129406077,
         "tx_packets": 639166,

@@ -14,7 +14,12 @@ from logging import getLogger
 from math import floor
 from typing import final, override
 
-from asyncssh import SSHClientConnection, connect, set_log_level
+from asyncssh import (
+    ChannelOpenError,
+    SSHClientConnection,
+    connect,
+    set_log_level,
+)
 
 from .constant import ALLOWED_KEY_HASHES
 from .structure import AsyncSSHConnectKwargs, AuthConfig, ConnectionType
@@ -60,7 +65,7 @@ class BaseConnection(ABC):
 
         return ret
 
-    async def run_command(self, command: str) -> list[str]:
+    async def run_command(self, command: str) -> list[str] | None:
         """
         Call a command on the router and retreive the output.
         Will call the command wrapped in a asyncio.Lock()
@@ -105,7 +110,7 @@ class BaseConnection(ABC):
             self._disconnect()
 
     @abstractmethod
-    async def _call_command(self, command: str) -> list[str]:
+    async def _call_command(self, command: str) -> list[str] | None:
         """Abstract call the command."""
 
     @abstractmethod
@@ -165,7 +170,7 @@ class SshConnection(BaseConnection):
         self._known_hosts: list[str] | None = None
 
     @override
-    async def _call_command(self, command: str) -> list[str]:
+    async def _call_command(self, command: str) -> list[str] | None:
         """
         Run commands through an SSH connection.
 
@@ -175,11 +180,16 @@ class SshConnection(BaseConnection):
         if not self._client:
             raise ConnectionError("Not connected to ssh")
 
-        result = await wait_for(
-            self._client.run(f"{_PATH_EXPORT_COMMAND} && {command}"),
-            9,
-        )
-        return list(str(result.stdout).split("\n"))
+        try:
+            result = await wait_for(
+                self._client.run(f"{_PATH_EXPORT_COMMAND} && {command}"),
+                9,
+            )
+            return list(str(result.stdout).split("\n"))
+        except ChannelOpenError:
+            _LOGGER.info("Router disconnected, will try to connect again.")
+            await self.disconnect()
+        return None
 
     @property
     @override
@@ -238,7 +248,7 @@ class TelnetConnection(BaseConnection):
         self._linebreak: float | None = None
 
     @override
-    async def _call_command(self, command: str) -> list[str]:
+    async def _call_command(self, command: str) -> list[str] | None:
         """Run a command through a Telnet connection."""
         try:
             if not self.is_connected:
