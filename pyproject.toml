@@ -3,7 +3,7 @@ name = "aioasuswrt"
 version = "2.0.2"
 description = "Api wrapper for Asuswrt https://www.asus.com/ASUSWRT/"
 readme = "README.md"
-requires-python = ">= 3.12"
+requires-python = ">= 3.13"
 license = "MIT"
 license-files = ["LICEN[CS]E.*"]
 authors = [

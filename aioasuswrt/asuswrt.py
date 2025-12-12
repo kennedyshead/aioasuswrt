@@ -5,7 +5,7 @@ from json import loads
 from logging import getLogger
 from re import Pattern, findall, finditer, split
 from time import time
-from typing import final
+from typing import cast, final
 
 from .connection import BaseConnection, create_connection
 from .constant import NETDEV_FIELDS, TEMP_COMMANDS, VPN_COUNT
@@ -108,6 +108,7 @@ class AsusWrt:
         """
         self._settings = settings or Settings()
         self._transfer_rates = TransferRates()
+        self._total_bytes = TransferRates(0, 0)
         self._last_transfer_rates_check = time()
         self._temps_commands: dict[str, TempCommand] = {}
         self._connection = create_connection(
@@ -349,17 +350,17 @@ class AsusWrt:
 
     @property
     async def rx(self) -> int:
-        """Get current RX total given in bytes."""
+        """Get current RX given in bytes."""
         return int(self._transfer_rates.rx)
 
     @property
     async def tx(self) -> int:
-        """Get current RX total given in bytes."""
+        """Get current RX given in bytes."""
         return int(self._transfer_rates.tx)
 
     async def get_current_transfer_rates(
         self,
-    ) -> tuple[int, int]:
+    ) -> dict[str, int]:
         """Get current transfer rates calculated in per second in bytes."""
         _now = time()
         delay = _now - self._last_transfer_rates_check
@@ -370,7 +371,7 @@ class AsusWrt:
         net_dev_lines = await self._connection.run_command(Command.NETDEV)
         if not net_dev_lines:
             _LOGGER.info("Unable to run %s", Command.NETDEV)
-            return 0, 0
+            return cast(dict[str, int], TransferRates(0, 0)._asdict())
 
         for line in net_dev_lines[2:]:
             parts = split(r"[\s:]+", line.strip())
@@ -396,14 +397,27 @@ class AsusWrt:
 
         self._transfer_rates = TransferRates(inetrx, inettx)
 
-        return rx if rx > 0 else 0, tx if tx > 0 else 0
+        self._transfer_rates = TransferRates(
+            self._total_bytes.rx + inetrx,
+            self._total_bytes.tx + inettx,
+        )
+
+        return cast(
+            dict[str, int],
+            TransferRates(rx if rx > 0 else 0, tx if tx > 0 else 0)._asdict(),
+        )
+
+    async def total_transfer(self) -> dict[str, int]:
+        """Total transfer."""
+        return cast(dict[str, int], self._total_bytes._asdict())
 
     async def current_transfer_human_readable(
         self,
     ) -> tuple[str, str] | None:
         """Get current transfer rates in a human readable format."""
-        rx, tx = await self.get_current_transfer_rates()
-
+        _rates = await self.get_current_transfer_rates()
+        rx = _rates.get("rx")
+        tx = _rates.get("tx")
         if rx and rx > 0 and tx and tx > 0:
             return f"{convert_size(rx)}/s", f" {convert_size(tx)}/s"
         return "0/s", "0/s"
