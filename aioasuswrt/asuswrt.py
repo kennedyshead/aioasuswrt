@@ -35,7 +35,7 @@ _WL_REGEX: Pattern[str] = re.compile(
 _CLIENTLIST_CMD: str = "cat /tmp/clientlist.json"
 
 _NVRAM_CMD: str = "nvram show"
-_NVRAM_REGEX = r"^{<item>}=([\w.\-/: <>]+)"
+_NVRAM_REGEX = r"^{}=([\w.\-/: <>]+)"
 
 _IP_NEIGH_CMD: str = "ip neigh"
 _IP_NEIGH_REGEX: Pattern[str] = re.compile(
@@ -445,19 +445,8 @@ class AsusWrt:
             _LOGGER.warning("No devices found in router")
             return data
 
-        try:
-            items = GET_LIST[to_get]
-        except KeyError:
-            _LOGGER.info("Cant get %s value", to_get)
-            return data
-
-        for item in items:
-            try:
-                regex = _NVRAM_REGEX.format(item)
-            except KeyError:
-                _LOGGER.info("Cant format %s", item)
-                continue
-
+        for item in GET_LIST[to_get]:
+            regex = _NVRAM_REGEX.format(item)
             for line in lines:
                 result = re.findall(regex, line)
                 if result:
