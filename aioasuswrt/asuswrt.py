@@ -29,6 +29,8 @@ from .structure import (
 
 _LOGGER = getLogger(__name__)
 
+_BIT_WRAP = 0xFFFFFFFF
+
 
 async def _run_temp_command(
     api: BaseConnection, command: TempCommand
@@ -108,8 +110,8 @@ class AsusWrt:
             settings (Settings | None): Optional aioasuswrt settings
         """
         self._settings = settings or Settings()
-        self._transfer_rates = TransferRates()
-        self._total_bytes = TransferRates(0, 0)
+        self._transfer_rates: TransferRates | None = None
+        self._total_bytes = TransferRates()
         self._last_transfer_rates_check = time()
         self._temps_commands: dict[str, TempCommand] = {}
         self._connection = create_connection(
@@ -354,12 +356,12 @@ class AsusWrt:
     @property
     async def rx(self) -> int:
         """Get current RX given in bytes."""
-        return int(self._transfer_rates.rx)
+        return int(self._transfer_rates.rx) if self._transfer_rates else 0
 
     @property
     async def tx(self) -> int:
         """Get current RX given in bytes."""
-        return int(self._transfer_rates.tx)
+        return int(self._transfer_rates.tx) if self._transfer_rates else 0
 
     async def get_current_transfer_rates(
         self,
@@ -373,8 +375,11 @@ class AsusWrt:
 
         net_dev_lines = await self._connection.run_command(Command.NETDEV)
         if not net_dev_lines:
-            _LOGGER.info("Unable to run %s", Command.NETDEV)
+            _LOGGER.info("Cannot calculate transfer speeds")
             return None
+
+        def handle32bitwrap(v: int) -> int:
+            return v if v > 0 else v + _BIT_WRAP
 
         for line in net_dev_lines[2:]:
             parts = split(r"[\s:]+", line.strip())
@@ -382,32 +387,35 @@ class AsusWrt:
             #  * assuming eth0 always comes before vlan1 in dev file
             #  * counted bytes wrap around at 0xFFFFFFFF
             if parts[0] == "eth0":
-                eth0rx = int(parts[1])  # received bytes
-                eth0tx = int(parts[9])  # transmitted bytes
+                eth0rx = handle32bitwrap(int(parts[1]))  # received bytes
+                eth0tx = handle32bitwrap(int(parts[9]))  # transmitted bytes
             elif parts[0] == "vlan1":
-                vlanrx = int(parts[1])  # received bytes
-                vlantx = int(parts[9])  # transmitted bytes
-
-        def handle32bitwrap(v: int) -> int:
-            return v if v > 0 else v + 0xFFFFFFFF
+                vlanrx = handle32bitwrap(int(parts[1]))  # received bytes
+                vlantx = handle32bitwrap(int(parts[9]))  # transmitted bytes
 
         # the true amount of Internet related data equals eth0 - vlan1
         inetrx = handle32bitwrap(eth0rx - vlanrx)
         inettx = handle32bitwrap(eth0tx - vlantx)
 
-        rx = int(handle32bitwrap(inetrx - self._transfer_rates.rx) / delay)
-        tx = int(handle32bitwrap(inettx - self._transfer_rates.tx) / delay)
+        rx = 0
+        tx = 0
+
+        if self._transfer_rates:
+            rx = int(handle32bitwrap(inetrx - self._transfer_rates.rx) / delay)
+            tx = int(handle32bitwrap(inettx - self._transfer_rates.tx) / delay)
+            self._total_bytes = TransferRates(
+                handle32bitwrap(
+                    self._total_bytes.rx + inetrx - self._transfer_rates.rx
+                ),
+                handle32bitwrap(
+                    self._total_bytes.tx + inettx - self._transfer_rates.tx
+                ),
+            )
 
         self._transfer_rates = TransferRates(inetrx, inettx)
-
-        self._transfer_rates = TransferRates(
-            self._total_bytes.rx + inetrx,
-            self._total_bytes.tx + inettx,
-        )
-
         return cast(
             dict[str, int],
-            TransferRates(rx if rx > 0 else 0, tx if tx > 0 else 0)._asdict(),
+            TransferRates(rx, tx)._asdict(),
         )
 
     async def total_transfer(self) -> dict[str, int]:
