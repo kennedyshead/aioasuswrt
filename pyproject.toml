@@ -28,6 +28,7 @@ classifiers = [
 ]
 dependencies = [
   "asyncssh",
+  "bcrypt",
 ]
 
 [project.urls]

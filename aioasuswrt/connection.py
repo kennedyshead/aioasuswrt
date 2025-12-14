@@ -16,6 +16,8 @@ from typing import final, override
 
 from asyncssh import (
     ChannelOpenError,
+    KeyEncryptionError,
+    KeyImportError,
     SSHClientConnection,
     connect,
     set_log_level,
@@ -212,7 +214,26 @@ class SshConnection(BaseConnection):
             known_hosts=self._known_hosts,
             client_keys=[self._ssh_key] if self._ssh_key else None,
         )
-        self._client = await connect(self._host, **kwargs)
+        try:
+            self._client = await connect(self._host, **kwargs)
+        except FileNotFoundError:
+            if self._ssh_key:
+                _LOGGER.warning(
+                    "The given ssh-key (%s) does not exist", self._ssh_key
+                )
+        except KeyImportError:
+            _LOGGER.warning(
+                (
+                    "There was an error using the given key (%s) "
+                    "make sure its the private key, have the correct "
+                    "permissions and that the passphrase is correct"
+                ),
+                self._ssh_key,
+            )
+        except KeyEncryptionError as err:
+            _LOGGER.warning(
+                "The given key is not accepted with error (%s)", err
+            )
 
     @override
     def _disconnect(self) -> None:
