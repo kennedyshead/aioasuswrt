@@ -473,10 +473,33 @@ class AsusWrt:
             return _records
         return None
 
-    async def get_interfaces_count(
+    async def get_interface_counters(
         self,
-    ) -> int | None:
-        """Get counters for all network interfaces."""
+    ) -> Iterable[tuple[str, dict[str, int]]] | None:
+        """
+        Get counters for all network interfaces.
+
+        Return value (needs unwrap with a list as its a Iterable):
+            [('lo', # Interface name
+                {'rx_bytes': 537171783, # Received
+                   'rx_carrier': 0,
+                   'rx_colls': 0,
+                   'rx_compressed': 0,
+                   'rx_drop': 0,
+                   'rx_errs': 0,
+                   'rx_fifo': 0,
+                   'rx_packets': 2834938,
+                   'tx_bytes': 537171783, # Transferred
+                   'tx_compressed': 0,
+                   'tx_drop': 0,
+                   'tx_errs': 0,
+                   'tx_fifo': 0,
+                   'tx_frame': 0,
+                   'tx_multicast': 0,
+                   'tx_packets': 2834938
+                })
+            ]
+        """
         net_dev_lines = await self._connection.run_command(Command.NETDEV)
         if net_dev_lines:
             lines = map(
@@ -490,7 +513,7 @@ class AsusWrt:
                 ),
                 lines,
             )
-            return len(list(interfaces)) if interfaces else None
+            return interfaces
         return None
 
     async def _find_temperature_commands(self) -> dict[str, float] | None:

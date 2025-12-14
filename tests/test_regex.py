@@ -279,7 +279,7 @@ async def test_get_loadavg(mocker: Any) -> None:
 
 
 @pytest.mark.asyncio
-async def test_get_interfaces_counts(mocker: Any) -> None:
+async def test_get_interface_counters(mocker: Any) -> None:
     """Test getting interfaces."""
     mock_run_cmd(mocker, [NETDEV_DATA])
     scanner = AsusWrt(
@@ -293,5 +293,6 @@ async def test_get_interfaces_counts(mocker: Any) -> None:
             port=2,
         ),
     )
-    data = await scanner.get_interfaces_count()
-    assert len(INTERFACES) == data
+    data = await scanner.get_interface_counters()
+    assert data
+    assert INTERFACES == list(data)

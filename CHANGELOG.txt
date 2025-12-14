@@ -1,15 +1,20 @@
+Version 2.0.7
+* Checked and fixed `get_transfer_rates`
+* Checked and fixed `get_interfaces_count` and renamed to `get_interface_counters`
+
 Version 2.0.6
 * STALE of FAILED counts as not home
 
 Version 2.0.5
 * Handle router disconnects
 
-Version 2.0.4
+Version 2.0.0
 * Splitting configs into dataclasses
 * Modern typing
 * Refactor tests to actually check outcome after all the different router querys are executed.
 * Fixing bugs for collected devices in `neigh` command
-* Move commands to its own module
+* Create a structure module and collect all structs
+* Using map / filter and return iterator where possible to reduce number of iterations in device collecting
 
 
 Version 1.5.1
