@@ -3,7 +3,7 @@ Version 2.0.7
 * Checked and fixed `get_interfaces_count` and renamed to `get_interface_counters`
 
 Version 2.0.6
-* STALE of FAILED counts as not home
+* STALE, REACHABLE and None counts as not home
 
 Version 2.0.5
 * Handle router disconnects
