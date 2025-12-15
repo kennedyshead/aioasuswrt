@@ -103,8 +103,7 @@ class BaseConnection(ABC):
         Disconnect from the client.
         Wrapping the io in a asyncio.Lock
         """
-        async with self._io_lock:
-            self._disconnect()
+        self._disconnect()
 
     @abstractmethod
     async def _call_command(self, command: str) -> list[str] | None:
