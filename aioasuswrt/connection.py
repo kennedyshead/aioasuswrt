@@ -103,7 +103,7 @@ class BaseConnection(ABC):
         Disconnect from the client.
         Wrapping the io in a asyncio.Lock
         """
-        self._disconnect()
+        await self._disconnect()
 
     @abstractmethod
     async def _call_command(self, command: str) -> list[str] | None:
@@ -114,7 +114,7 @@ class BaseConnection(ABC):
         """Abstract establish a connection."""
 
     @abstractmethod
-    def _disconnect(self) -> None:
+    async def _disconnect(self) -> None:
         """Abstract disconnect."""
 
     @property
@@ -196,9 +196,6 @@ class SshConnection(BaseConnection):
     @override
     async def _connect(self) -> None:
         """Connects the ssh-client."""
-        if self._client:
-            self._disconnect()
-
         kwargs = AsyncSSHConnectKwargs(
             username=self._username,
             port=self._port,
@@ -238,7 +235,7 @@ class SshConnection(BaseConnection):
             raise ConnectionError("Unable to connect to router") from err
 
     @override
-    def _disconnect(self) -> None:
+    async def _disconnect(self) -> None:
         """Disconnect and set self._client to None"""
         if self._client:
             self._client.close()
@@ -291,13 +288,12 @@ class TelnetConnection(BaseConnection):
                 self._reader.readuntil(self._prompt_string), 9
             )
         except (BrokenPipeError, LimitOverrunError, IncompleteReadError):
-            # Writing has failed, Let's close and retry if necessary
             _LOGGER.warning("Connection is lost to host, retrying")
-            self._disconnect()
+            await self._disconnect()
             return None
         except TimeoutError:
             _LOGGER.error("Host timeout, retrying")
-            self._disconnect()
+            await self._disconnect()
             return None
 
         data_list = data.split(b"\n")
@@ -315,9 +311,6 @@ class TelnetConnection(BaseConnection):
 
     @override
     async def _connect(self) -> None:
-        if self.is_connected:
-            self._disconnect()
-
         err: (
             IncompleteReadError | TimeoutError | ConnectionRefusedError | None
         ) = None
@@ -331,11 +324,9 @@ class TelnetConnection(BaseConnection):
             _LOGGER.error(
                 "Unable to read from router on %s:%s", self._host, self._port
             )
-            self._disconnect()
         except TimeoutError as exc:
             err = exc
             _LOGGER.error("Host timeout")
-            self._disconnect()
         except ConnectionRefusedError as exc:
             err = exc
             _LOGGER.error("Connection refused")
@@ -398,7 +389,7 @@ class TelnetConnection(BaseConnection):
         return self._reader is not None and self._writer is not None
 
     @override
-    def _disconnect(self) -> None:
+    async def _disconnect(self) -> None:
         """
         Disconnect the connection.
 

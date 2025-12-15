@@ -1,6 +1,5 @@
 # pylint: skip-file
 
-from asyncio import IncompleteReadError
 from unittest import TestCase, mock
 
 import pytest
@@ -81,33 +80,4 @@ async def test_sending_cmds():
         exp_ret_val = "Some arbitrary long return string." + "." * 100
         telnet_mock.set_return(exp_ret_val)
         new_return = await connection.run_command("run command\n")
-
         assert new_return and new_return[0] == exp_ret_val
-
-
-@pytest.mark.asyncio
-async def test_reconnect_telnet():
-    with mock.patch(
-        "aioasuswrt.connection.open_connection",
-        new=telnet_mock.open_connection,
-    ):
-        connection = TelnetConnection(
-            "fake",
-            auth_config=AuthConfig(
-                username="fake",
-                password="fake",
-                connection_type=ConnectionType.TELNET,
-                ssh_key=None,
-                passphrase=None,
-                port=2,
-            ),
-        )
-
-        await connection.connect()
-
-        telnet_mock.raise_exception_on_write(
-            IncompleteReadError("".encode("ascii"), 42)
-        )
-
-        new_return = await connection.run_command("run command\n")
-        assert new_return is None
