@@ -32,10 +32,6 @@ _PATH_EXPORT_COMMAND: str = "PATH=$PATH:/bin:/usr/sbin:/sbin"
 set_log_level("WARNING")
 
 
-class _CommandException(Exception):
-    """Protected command exception."""
-
-
 class BaseConnection(ABC):
     """Abstract class representation of a connection to the router."""
 
@@ -83,10 +79,9 @@ class BaseConnection(ABC):
         async with self._io_lock:
             try:
                 return await self._call_command(command)
-            except _CommandException as ex:
+            except ConnectionError as ex:
                 _LOGGER.exception(ex)
-
-        return []
+                raise
 
     async def connect(self) -> None:
         """
@@ -287,7 +282,7 @@ class TelnetConnection(BaseConnection):
                 self._linebreak = await self._get_linebreak()
 
             if not self._writer or not self._reader:
-                raise _CommandException
+                raise ConnectionError("No open connection to router")
 
             # Let's add the path and send the command
             full_cmd = f"{_PATH_EXPORT_COMMAND} && {command}"
@@ -298,11 +293,11 @@ class TelnetConnection(BaseConnection):
             )
         except (BrokenPipeError, LimitOverrunError, IncompleteReadError):
             # Writing has failed, Let's close and retry if necessary
-            _LOGGER.warning("Connection is lost to host")
+            _LOGGER.warning("Connection is lost to host, retrying")
             self._disconnect()
             return None
         except TimeoutError:
-            _LOGGER.error("Host timeout")
+            _LOGGER.error("Host timeout, retrying")
             self._disconnect()
             return None
 
@@ -324,12 +319,13 @@ class TelnetConnection(BaseConnection):
         if self.is_connected:
             self._disconnect()
 
-        self._reader, self._writer = await open_connection(
-            self._host, self._port
-        )
-
-        err: IncompleteReadError | TimeoutError | None = None
+        err: (
+            IncompleteReadError | TimeoutError | ConnectionRefusedError | None
+        ) = None
         try:
+            self._reader, self._writer = await open_connection(
+                self._host, self._port
+            )
             _ = await wait_for(self._reader.readuntil(b"login: "), 9)
         except IncompleteReadError as exc:
             err = exc
@@ -341,9 +337,15 @@ class TelnetConnection(BaseConnection):
             err = exc
             _LOGGER.error("Host timeout")
             self._disconnect()
+        except ConnectionRefusedError as exc:
+            err = exc
+            _LOGGER.error("Connection refused")
 
         if err:
             raise ConnectionError("Unable to connect to router") from err
+
+        if not self._writer or not self._reader:
+            raise ConnectionError("Unable to connect to router")
 
         self._writer.write((self._username or "" + "\n").encode("ascii"))
 
