@@ -252,129 +252,166 @@ class Command(StrEnum):
     VPN_STOP = "service stop_vpnclient{id}"
 
 
-_NVRAM_VPN_LIST: list[str] = ["vpnc_clientlist"]
-_NVRAM_VPN_LIST.extend([f"vpn_client{i + 1}_state" for i in range(_VPN_COUNT)])
-
-
-class Nvram(NamedTuple):
+class _Nvram(TypedDict):
     """Property mapping for the nvram info command."""
 
-    DHCP: list[str] = [
-        "dhcp_dns1_x",
-        "dhcp_dns2_x",
-        "dhcp_enable_x",
-        "dhcp_start",
-        "dhcp_end",
-        "dhcp_lease",
-    ]
-    MODEL: list[str] = ["model"]
-    QOS: list[str] = [
-        "qos_ack",
-        "qos_atm",
-        "qos_burst0",
-        "qos_burst1",
-        "qos_default",
-        "qos_enable",
-        "qos_fin",
-        "qos_ibw",
-        "qos_ibw1",
-        "qos_icmp",
-        "qos_irates",
-        "qos_method",
-        "qos_obw",
-        "qos_obw1",
-        "qos_orules",
-        "qos_overhead",
-        "qos_reset",
-        "qos_rst",
-        "qos_sched",
-        "qos_sticky",
-        "qos_syn",
-        "qos_type",
-    ]
-    REBOOT: list[str] = [
-        "reboot_schedule",
-        "reboot_schedule_enable",
-        "reboot_time",
-    ]
-    WLAN: list[str] = [
-        "wan_dns",
-        "wan_domain",
-        "wan_enable",
-        "wan_expires",
-        "wan_gateway",
-        "wan_ipaddr",
-        "wan_lease",
-        "wan_mtu",
-        "wan_realip_ip",
-        "wan_realip_state",
-    ]
-    GUEST_2G_1: list[str] = [
-        "wl0.1_bss_enabled",
-        "wl0.1_lanaccess",
-        "wl0.1_ssid",
-        "wl0.1_wpa_psk",
-    ]
-    GUEST_2G_2: list[str] = [
-        "wl0.2_bss_enabled",
-        "wl0.2_lanaccess",
-        "wl0.2_ssid",
-        "wl0.2_wpa_psk",
-    ]
-    GUEST_2G_3: list[str] = [
-        "wl0.3_bss_enabled",
-        "wl0.3_lanaccess",
-        "wl0.3_ssid",
-        "wl0.3_wpa_psk",
-    ]
-    WIFI_2G: list[str] = [
-        "wl0_bss_enabled",
-        "wl0_chanspec",
-        "wl0_ssid",
-        "wl0_wpa_psk",
-    ]
-    GUEST_5G_1: list[str] = [
-        "wl1.1_bss_enabled",
-        "wl1.1_lanaccess",
-        "wl1.1_ssid",
-        "wl1.1_wpa_psk",
-    ]
-    GUEST_5G_2: list[str] = [
-        "wl1.2_bss_enabled",
-        "wl1.2_lanaccess",
-        "wl1.2_ssid",
-        "wl1.2_wpa_psk",
-    ]
-    GUEST_5G_3: list[str] = [
-        "wl1.3_bss_enabled",
-        "wl1.3_lanaccess",
-        "wl1.3_ssid",
-        "wl1.3_wpa_psk",
-    ]
-    WIFI_5G: list[str] = [
-        "wl1_bss_enabled",
-        "wl1_chanspec",
-        "wl1_ssid",
-        "wl1_wpa_psk",
-    ]
-    FIRMWARE: list[str] = [
-        "buildinfo",
-        "buildno",
-        "buildno_org",
-        "firmver",
-        "firmware_check",
-        "firmware_check_enable",
-        "firmware_path",
-        "firmware_server",
-        "webs_last_info",
-        "webs_notif_flag",
-        "webs_state_REQinfo",
-        "webs_state_error",
-        "webs_state_flag",
-        "webs_state_odm",
-        "webs_state_update",
-        "webs_state_upgrade",
-        "webs_state_url",
-    ]
-    LABEL_MAC: list[str] = ["label_mac"]
-    VPN: list[str] = _NVRAM_VPN_LIST
+    DHCP: list[str]
+    MODEL: list[str]
+    QOS: list[str]
+    REBOOT: list[str]
+    WLAN: list[str]
+    GUEST_2G_1: list[str]
+    GUEST_2G_2: list[str]
+    GUEST_2G_3: list[str]
+    WIFI_2G: list[str]
+    GUEST_5G_1: list[str]
+    GUEST_5G_2: list[str]
+    GUEST_5G_3: list[str]
+    WIFI_5G: list[str]
+    FIRMWARE: list[str]
+    LABEL_MAC: list[str]
+    VPN: list[str]
+
+
+_DHCP = [
+    "dhcp_dns1_x",
+    "dhcp_dns2_x",
+    "dhcp_enable_x",
+    "dhcp_start",
+    "dhcp_end",
+    "dhcp_lease",
+]
+
+_MODEL = ["model"]
+
+_QOS = [
+    "qos_ack",
+    "qos_atm",
+    "qos_burst0",
+    "qos_burst1",
+    "qos_default",
+    "qos_enable",
+    "qos_fin",
+    "qos_ibw",
+    "qos_ibw1",
+    "qos_icmp",
+    "qos_irates",
+    "qos_method",
+    "qos_obw",
+    "qos_obw1",
+    "qos_orules",
+    "qos_overhead",
+    "qos_reset",
+    "qos_rst",
+    "qos_sched",
+    "qos_sticky",
+    "qos_syn",
+    "qos_type",
+]
+_REBOOT = [
+    "reboot_schedule",
+    "reboot_schedule_enable",
+    "reboot_time",
+]
+_WLAN = [
+    "wan_dns",
+    "wan_domain",
+    "wan_enable",
+    "wan_expires",
+    "wan_gateway",
+    "wan_ipaddr",
+    "wan_lease",
+    "wan_mtu",
+    "wan_realip_ip",
+    "wan_realip_state",
+]
+_GUEST_2G_1 = [
+    "wl0.1_bss_enabled",
+    "wl0.1_lanaccess",
+    "wl0.1_ssid",
+    "wl0.1_wpa_psk",
+]
+_GUEST_2G_2 = [
+    "wl0.2_bss_enabled",
+    "wl0.2_lanaccess",
+    "wl0.2_ssid",
+    "wl0.2_wpa_psk",
+]
+_GUEST_2G_3 = [
+    "wl0.3_bss_enabled",
+    "wl0.3_lanaccess",
+    "wl0.3_ssid",
+    "wl0.3_wpa_psk",
+]
+_WIFI_2G = [
+    "wl0_bss_enabled",
+    "wl0_chanspec",
+    "wl0_ssid",
+    "wl0_wpa_psk",
+]
+_GUEST_5G_1 = [
+    "wl1.1_bss_enabled",
+    "wl1.1_lanaccess",
+    "wl1.1_ssid",
+    "wl1.1_wpa_psk",
+]
+_GUEST_5G_2 = [
+    "wl1.2_bss_enabled",
+    "wl1.2_lanaccess",
+    "wl1.2_ssid",
+    "wl1.2_wpa_psk",
+]
+_GUEST_5G_3 = [
+    "wl1.3_bss_enabled",
+    "wl1.3_lanaccess",
+    "wl1.3_ssid",
+    "wl1.3_wpa_psk",
+]
+_WIFI_5G = [
+    "wl1_bss_enabled",
+    "wl1_chanspec",
+    "wl1_ssid",
+    "wl1_wpa_psk",
+]
+_FIRMWARE = [
+    "buildinfo",
+    "buildno",
+    "buildno_org",
+    "firmver",
+    "firmware_check",
+    "firmware_check_enable",
+    "firmware_path",
+    "firmware_server",
+    "webs_last_info",
+    "webs_notif_flag",
+    "webs_state_REQinfo",
+    "webs_state_error",
+    "webs_state_flag",
+    "webs_state_odm",
+    "webs_state_update",
+    "webs_state_upgrade",
+    "webs_state_url",
+]
+_LABEL_MAC = ["label_mac"]
+
+_VPN: list[str] = ["vpnc_clientlist"]
+_VPN.extend([f"vpn_client{i + 1}_state" for i in range(_VPN_COUNT)])
+
+Nvram = _Nvram(
+    DHCP=_DHCP,
+    MODEL=_MODEL,
+    QOS=_QOS,
+    REBOOT=_REBOOT,
+    WLAN=_WLAN,
+    GUEST_2G_1=_GUEST_2G_1,
+    GUEST_2G_2=_GUEST_2G_2,
+    GUEST_2G_3=_GUEST_2G_3,
+    WIFI_2G=_WIFI_2G,
+    GUEST_5G_1=_GUEST_5G_1,
+    GUEST_5G_2=_GUEST_5G_2,
+    GUEST_5G_3=_GUEST_5G_3,
+    WIFI_5G=_WIFI_5G,
+    FIRMWARE=_FIRMWARE,
+    LABEL_MAC=_LABEL_MAC,
+    VPN=_VPN,
+)

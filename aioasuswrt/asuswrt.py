@@ -138,22 +138,29 @@ class AsusWrt:
             parameter_to_fetch (str): The parameter we are targeting to fetch.
         """
         data: dict[str, str] = {}
-        target: list[str] | None = getattr(Nvram, parameter_to_fetch, None)
-        if not isinstance(target, list):
-            return None
+        target: list[str] = Nvram.get(parameter_to_fetch, [])
 
         lines = await self._connection.run_command(Command.NVRAM)
+
         if not lines:
-            _LOGGER.warning("No devices found in router")
+            _LOGGER.warning("Cant fetch Nvram")
             return None
 
-        for item in target:
+        def _add_to_data(item: str, line: str) -> None:
             regex = Regex.NVRAM.format(item)
-            for line in lines:
-                result = findall(regex, line)
-                if result:
-                    data[item] = result[0]
-                    break
+            result = findall(regex, line)
+            if result:
+                data[item] = result[0]
+
+        def _match_line(item: str) -> Iterable[None]:
+            return list(
+                map(
+                    lambda line: _add_to_data(item, line),
+                    filter(lambda line: item in line, lines),
+                )
+            )
+
+        _ = list(map(_match_line, target))
         return data
 
     async def _get_wl(self, devices: dict[str, Device]) -> dict[str, Device]:

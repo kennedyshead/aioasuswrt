@@ -443,3 +443,21 @@ CLIENTLIST_DATA = [
         '"wired_mac":{"08:09:15:15:15:15":{"ip":"123.123.123.129"}}}}'
     )
 ]
+
+NVRAM_DATA = (
+    "dhcp_dns1_x=123",
+    "dhcp_dns2_x=321",
+    "dhcp_enable_x=897",
+    "dhcp_start=778",
+    "dhcp_end=666",
+    "dhcp_lease=777",
+)
+
+DHCP_DATA = {
+    "dhcp_dns1_x": "123",
+    "dhcp_dns2_x": "321",
+    "dhcp_enable_x": "897",
+    "dhcp_start": "778",
+    "dhcp_end": "666",
+    "dhcp_lease": "777",
+}

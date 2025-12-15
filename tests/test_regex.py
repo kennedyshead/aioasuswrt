@@ -14,7 +14,8 @@ from aioasuswrt import (
     Mode,
     Settings,
 )
-from tests.test_data import (
+
+from .common import (
     ARP_DATA,
     ARP_DEVICES,
     CLIENTLIST_DATA,
