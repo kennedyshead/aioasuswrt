@@ -9,7 +9,6 @@ from typing import cast, final
 
 from .connection import BaseConnection, create_connection
 from .constant import NETDEV_FIELDS, TEMP_COMMANDS, VPN_COUNT
-from .helpers import convert_size
 from .structure import (
     AuthConfig,
     Command,
@@ -311,10 +310,8 @@ class AsusWrt:
                 "There are %s devices found after clientlist.json",
                 len(devices),
             )
-        except (TypeError, ValueError, AssertionError) as ex:
+        except (TypeError, ValueError, AssertionError):
             _LOGGER.warning("Unable to parse clientlist.json")
-            print(lines[0])
-            print(ex)
         return devices
 
     async def get_connected_devices(
@@ -362,16 +359,6 @@ class AsusWrt:
             if dev.device_data.get("ip") is not None
         }
 
-    @property
-    async def rx(self) -> int:
-        """Get current RX given in bytes."""
-        return int(self._transfer_rates.rx) if self._transfer_rates else 0
-
-    @property
-    async def tx(self) -> int:
-        """Get current RX given in bytes."""
-        return int(self._transfer_rates.tx) if self._transfer_rates else 0
-
     async def get_current_transfer_rates(
         self,
     ) -> dict[str, int] | None:
@@ -379,36 +366,30 @@ class AsusWrt:
         _now = time()
         delay = _now - self._last_transfer_rates_check
         self._last_transfer_rates_check = _now
-        eth0rx = eth0tx = 0
-        vlanrx = vlantx = 0
 
         net_dev_lines = await self._connection.run_command(Command.NETDEV)
         if not net_dev_lines:
-            _LOGGER.info("Cannot calculate transfer speeds")
+            _LOGGER.info("Cannot run netdev command (for transfer rates)")
             return None
 
         def handle32bitwrap(v: int) -> int:
             return v if v > 0 else v + _BIT_WRAP
 
-        for line in net_dev_lines[2:]:
+        def _add_if_match(line: str) -> TransferRates | None:
             parts = split(r"[\s:]+", line.strip())
-            # NOTES:
-            #  * assuming eth0 always comes before vlan1 in dev file
-            #  * counted bytes wrap around at 0xFFFFFFFF
-            if parts[0] == "eth0":
-                eth0rx = handle32bitwrap(int(parts[1]))  # received bytes
-                eth0tx = handle32bitwrap(int(parts[9]))  # transmitted bytes
-            elif parts[0] == "vlan1":
-                vlanrx = handle32bitwrap(int(parts[1]))  # received bytes
-                vlantx = handle32bitwrap(int(parts[9]))  # transmitted bytes
+            if parts[0] in ["eth0", "vlan1"]:
+                return TransferRates(
+                    handle32bitwrap(int(parts[1])),
+                    handle32bitwrap(int(parts[9])),
+                )
+            return None
 
-        # the true amount of Internet related data equals eth0 - vlan1
-        inetrx = handle32bitwrap(eth0rx - vlanrx)
-        inettx = handle32bitwrap(eth0tx - vlantx)
+        eth, vlan = list(filter(None, map(_add_if_match, net_dev_lines[2:])))
 
-        rx = 0
-        tx = 0
+        inetrx = handle32bitwrap(eth.rx - vlan.rx)
+        inettx = handle32bitwrap(eth.tx - vlan.tx)
 
+        rx = tx = 0
         if self._transfer_rates:
             rx = int(handle32bitwrap(inetrx - self._transfer_rates.rx) / delay)
             tx = int(handle32bitwrap(inettx - self._transfer_rates.tx) / delay)
@@ -431,39 +412,25 @@ class AsusWrt:
         """Total transfer."""
         return cast(dict[str, int], self._total_bytes._asdict())
 
-    async def current_transfer_human_readable(
-        self,
-    ) -> tuple[str, str] | None:
-        """Get current transfer rates in a human readable format."""
-        _rates = await self.get_current_transfer_rates()
-        if not _rates:
-            return None
-        rx = _rates.get("rx")
-        tx = _rates.get("tx")
-        if rx and rx > 0 and tx and tx > 0:
-            return f"{convert_size(rx)}/s", f" {convert_size(tx)}/s"
-        return "0/s", "0/s"
-
     async def get_loadavg(self) -> dict[str, float] | None:
         """Get loadavg."""
+
         _loadavg = await self._connection.run_command(Command.LOADAVG)
-        if _loadavg:
-            loadavg = list(
-                map(
-                    float,
-                    _loadavg[0].split(" ")[0:3],
-                )
+        if not _loadavg:
+            return None
+
+        loadavg = list(
+            map(
+                float,
+                _loadavg[0].split(" ")[0:3],
             )
-            _keys = [
-                "sensor_load_avg1",
-                "sensor_load_avg5",
-                "sensor_load_avg15",
-            ]
-            return {
-                f"{_keys[index]}": loadavg[index]
-                for index in range(len(loadavg))
-            }
-        return None
+        )
+        _keys = [
+            "sensor_load_avg1",
+            "sensor_load_avg5",
+            "sensor_load_avg15",
+        ]
+        return {f"{_keys[index]}": loadavg[index] for index in range(3)}
 
     async def add_dns_record(
         self, hostname: str, ipaddress: str
@@ -488,7 +455,7 @@ class AsusWrt:
         """
         Get counters for all network interfaces.
 
-        Return value (needs unwrap with a list as its a Iterable):
+        Returns:
             [('lo', # Interface name
                 {'rx_bytes': 537171783, # Received
                    'rx_carrier': 0,
@@ -509,21 +476,23 @@ class AsusWrt:
                 })
             ]
         """
+
         net_dev_lines = await self._connection.run_command(Command.NETDEV)
-        if net_dev_lines:
-            lines = map(
-                lambda i: list(filter(lambda j: j != "", i.split(" "))),
-                net_dev_lines[2:-1],
-            )
-            interfaces: Iterable[tuple[str, dict[str, int]]] = map(
-                lambda i: (
-                    i[0][0:-1],
-                    dict(zip(NETDEV_FIELDS, map(int, i[1:]))),
-                ),
-                lines,
-            )
-            return interfaces
-        return None
+        if not net_dev_lines:
+            return None
+
+        lines = map(
+            lambda i: list(filter(lambda j: j != "", i.split(" "))),
+            net_dev_lines[2:-1],
+        )
+        interfaces: Iterable[tuple[str, dict[str, int]]] = map(
+            lambda i: (
+                i[0][0:-1],
+                dict(zip(NETDEV_FIELDS, map(int, i[1:]))),
+            ),
+            lines,
+        )
+        return interfaces
 
     async def _find_temperature_commands(self) -> dict[str, float] | None:
         """Find which temperature commands work with the router, if any."""
@@ -543,20 +512,19 @@ class AsusWrt:
                         break
                 except (ValueError, IndexError, OSError):
                     continue
-        if len(ret) > 0:
-            return ret
-        return None
+        return ret
 
     async def get_temperature(self) -> dict[str, float] | None:
         """Get temperature values we can find."""
-        result: dict[str, float] = {}
+        result: dict[str, float] | None = {}
         if not self._temps_commands:
-            return await self._find_temperature_commands()
-        for interface, command in self._temps_commands.items():
-            temp = await _run_temp_command(self._connection, command)
-            if temp:
-                result[interface] = temp
-        if len(result) > 0:
+            result = await self._find_temperature_commands()
+        if result and result == {}:
+            for interface, command in self._temps_commands.items():
+                temp = await _run_temp_command(self._connection, command)
+                if temp:
+                    result[interface] = temp
+        if result != {"2.4GHz": 0.0, "5.0GHz": 0.0, "CPU": 0.0}:
             return result
         return None
 

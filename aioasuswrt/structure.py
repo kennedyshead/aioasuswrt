@@ -5,7 +5,7 @@ from re import Pattern
 from re import compile as re_compile
 from typing import Callable, NamedTuple, TypeAlias, TypedDict
 
-_VPN_COUNT: int = 5  # Max allowed VPN setups
+_VPN_COUNT: int = 5
 
 
 InterfaceJson: TypeAlias = dict[
