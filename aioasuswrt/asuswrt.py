@@ -221,15 +221,16 @@ class AsusWrt:
 
         def _handle(device: dict[str, str]) -> None:
             mac = device["mac"].upper()
-            if mac not in devices:
-                devices[mac] = _new_device(mac)
             host = device.get("host")
             if host is not None and host != "*":
                 devices[mac].device_data["name"] = host
 
             devices[mac].device_data["ip"] = device["ip"]
 
-        _ = list(map(_handle, result))
+        def _in_devices(device: dict[str, str]) -> bool:
+            return device["mac"].upper() in devices
+
+        _ = list(map(_handle, filter(_in_devices, result)))
         _LOGGER.info("There are %s devices found after leases", len(devices))
         return devices
 
@@ -343,7 +344,8 @@ class AsusWrt:
             devices = {
                 key: dev
                 for key, dev in devices.items()
-                if dev.device_data.get("status") not in ["FAILED", "STALE"]
+                if dev.device_data.get("status")
+                in ["REACHABLE", "STALE", None]
             }
         if not self._settings.require_ip:
             return devices

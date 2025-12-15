@@ -81,11 +81,12 @@ async def test_sending_cmds():
         exp_ret_val = "Some arbitrary long return string." + "." * 100
         telnet_mock.set_return(exp_ret_val)
         new_return = await connection.run_command("run command\n")
-        assert new_return[0] == exp_ret_val
+
+        assert new_return and new_return[0] == exp_ret_val
 
 
 @pytest.mark.asyncio
-async def test_reconnect():
+async def test_reconnect_telnet():
     with mock.patch(
         "aioasuswrt.connection.open_connection",
         new=telnet_mock.open_connection,
@@ -109,4 +110,4 @@ async def test_reconnect():
         )
 
         new_return = await connection.run_command("run command\n")
-        assert new_return == []
+        assert new_return is None

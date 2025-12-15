@@ -422,10 +422,6 @@ LEASES_DATA = [  # android device is not present
 ]
 LEASES_DEVICES = deepcopy(NEIGH_DEVICES)
 LEASES_DEVICES["01:02:03:04:06:08"].device_data["name"] = "TV"
-LEASES_DEVICES["01:02:03:04:06:10"] = _new_device("01:02:03:04:06:10")
-LEASES_DEVICES["01:02:03:04:06:10"].device_data["ip"] = "123.123.123.127"
-LEASES_DEVICES["01:02:03:04:06:10"].device_data["name"] = "android"
-
 
 WAKE_DEVICES_AP = deepcopy(NEIGH_DEVICES)
 WAKE_DEVICES_AP["01:02:03:04:06:08"].interface["name"] = "2G"

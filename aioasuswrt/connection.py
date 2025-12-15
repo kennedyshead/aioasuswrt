@@ -180,7 +180,7 @@ class SshConnection(BaseConnection):
             command (str): The actual command to run
         """
         if not self._client:
-            raise ConnectionError("Not connected to ssh")
+            return None
 
         try:
             result = await wait_for(
@@ -214,14 +214,19 @@ class SshConnection(BaseConnection):
             known_hosts=self._known_hosts,
             client_keys=[self._ssh_key] if self._ssh_key else None,
         )
+        err: FileNotFoundError | KeyImportError | KeyEncryptionError | None = (
+            None
+        )
         try:
             self._client = await connect(self._host, **kwargs)
-        except FileNotFoundError:
+        except FileNotFoundError as exc:
+            err = exc
             if self._ssh_key:
                 _LOGGER.warning(
                     "The given ssh-key (%s) does not exist", self._ssh_key
                 )
-        except KeyImportError:
+        except KeyImportError as exc:
+            err = exc
             _LOGGER.warning(
                 (
                     "There was an error using the given key (%s) "
@@ -230,10 +235,13 @@ class SshConnection(BaseConnection):
                 ),
                 self._ssh_key,
             )
-        except KeyEncryptionError as err:
+        except KeyEncryptionError as exc:
+            err = exc
             _LOGGER.warning(
                 "The given key is not accepted with error (%s)", err
             )
+        if err:
+            raise ConnectionError("Unable to connect to router") from err
 
     @override
     def _disconnect(self) -> None:
@@ -276,7 +284,7 @@ class TelnetConnection(BaseConnection):
                 await self._connect()
 
             if self._linebreak is None:
-                self._linebreak = await self.linebreak()
+                self._linebreak = await self._get_linebreak()
 
             if not self._writer or not self._reader:
                 raise _CommandException
@@ -288,23 +296,28 @@ class TelnetConnection(BaseConnection):
             data = await wait_for(
                 self._reader.readuntil(self._prompt_string), 9
             )
-        except (BrokenPipeError, LimitOverrunError, IncompleteReadError) as ex:
+        except (BrokenPipeError, LimitOverrunError, IncompleteReadError):
             # Writing has failed, Let's close and retry if necessary
             _LOGGER.warning("Connection is lost to host")
             self._disconnect()
-            raise _CommandException from ex
-        except TimeoutError as ex:
+            return None
+        except TimeoutError:
             _LOGGER.error("Host timeout")
             self._disconnect()
-            raise _CommandException from ex
+            return None
 
-        # Let's process the received data
         data_list = data.split(b"\n")
-        # Let's find the number of elements the cmd takes
+
         cmd_len = len(self._prompt_string) + len(full_cmd)
-        # We have to do floor + 1 to handle the infinite case correct
-        start_split = floor(cmd_len / self._linebreak) + 1
+        start_split: int = floor(cmd_len / self.linebreak) + 1
         return list(line.decode("utf-8") for line in data_list[start_split:-1])
+
+    @property
+    def linebreak(self) -> float:
+        """Get linelength"""
+        if not self._linebreak:
+            raise ConnectionError("No linebreak found")
+        return self._linebreak
 
     @override
     async def _connect(self) -> None:
@@ -315,41 +328,41 @@ class TelnetConnection(BaseConnection):
             self._host, self._port
         )
 
-        # Process the login
-        # Enter the Username
+        err: IncompleteReadError | TimeoutError | None = None
         try:
             _ = await wait_for(self._reader.readuntil(b"login: "), 9)
-        except IncompleteReadError:
+        except IncompleteReadError as exc:
+            err = exc
             _LOGGER.error(
                 "Unable to read from router on %s:%s", self._host, self._port
             )
-            return
-        except TimeoutError:
+            self._disconnect()
+        except TimeoutError as exc:
+            err = exc
             _LOGGER.error("Host timeout")
             self._disconnect()
 
+        if err:
+            raise ConnectionError("Unable to connect to router") from err
+
         self._writer.write((self._username or "" + "\n").encode("ascii"))
 
-        # Enter the password
         _ = await self._reader.readuntil(b"Password: ")
         self._writer.write((self._password or "" + "\n").encode("ascii"))
 
-        # Now we can determine the prompt string for the commands.
         self._prompt_string = (await self._reader.readuntil(b"#")).split(
             b"\n"
         )[-1]
 
-    async def linebreak(self) -> float:
+    async def _get_linebreak(self) -> float | None:
         """
         Get linebreak.
 
         Telnet or asyncio seems to be adding linebreaks due to terminal size.
         Try to determine here what the column number is.
         """
-        # Let's determine if any linebreaks are added
-        # Write some arbitrary long string.
         if not self._writer or not self._reader:
-            raise _CommandException
+            return None
 
         self._writer.write((" " * 200 + "\n").encode("ascii"))
         input_bytes = await self._reader.readuntil(self._prompt_string)
