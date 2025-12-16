@@ -112,7 +112,7 @@ class AsusWrt:
         self._transfer_rates: TransferRates | None = None
         self._total_bytes = TransferRates()
         self._last_transfer_rates_check = time()
-        self._temps_commands: dict[str, TempCommand] = {}
+        self._temps_commands: dict[str, TempCommand] | None = None
         self._connection = create_connection(
             host,
             auth_config,
@@ -494,9 +494,10 @@ class AsusWrt:
         )
         return interfaces
 
-    async def _find_temperature_commands(self) -> dict[str, float] | None:
+    async def _find_temperature_commands(self) -> dict[str, float]:
         """Find which temperature commands work with the router, if any."""
         ret: dict[str, float] = {}
+        self._temps_commands = {}
 
         for interface, commands in TEMP_COMMANDS.items():
             temp_command: TempCommand
@@ -516,15 +517,17 @@ class AsusWrt:
 
     async def get_temperature(self) -> dict[str, float] | None:
         """Get temperature values we can find."""
-        result: dict[str, float] | None = {}
-        if not self._temps_commands:
+        result: dict[str, float] = {}
+
+        if self._temps_commands is None:
             result = await self._find_temperature_commands()
-        if result and result == {}:
+
+        if result == {} and self._temps_commands:
             for interface, command in self._temps_commands.items():
                 temp = await _run_temp_command(self._connection, command)
                 if temp:
                     result[interface] = temp
-        if result != {"2.4GHz": 0.0, "5.0GHz": 0.0, "CPU": 0.0}:
+        if result not in [{"2.4GHz": 0.0, "5.0GHz": 0.0, "CPU": 0.0}, {}]:
             return result
         return None
 

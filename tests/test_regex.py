@@ -40,9 +40,8 @@ def mock_run_cmd(mocker: Any, values: Any) -> None:
     """Mocking the run_command method in AsusWrt."""
     count = 0
 
-    async def patch_func(command: Any, *args: Any, **kwargs: Any) -> Any:
+    async def patch_func(_: Any, *__: Any, **___: Any) -> Any:
         nonlocal count
-        print(f"Command: {command}\nwith args={args} and kwargs={kwargs}")
         try:
             count += 1
             print(count)
