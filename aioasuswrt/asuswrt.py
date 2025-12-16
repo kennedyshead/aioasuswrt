@@ -2,14 +2,21 @@
 
 from collections.abc import Iterable
 from logging import getLogger
-from re import Pattern, findall, finditer, split
+from re import finditer, split
 from time import time
 from typing import cast, final
 
 from .connection import BaseConnection, create_connection
 from .constant import NETDEV_FIELDS, TEMP_COMMANDS, VPN_COUNT
 from .helpers import empty_iter
-from .parser import parse_clientjson
+from .parsers import (
+    parse_arp,
+    parse_clientjson,
+    parse_leases,
+    parse_nvram,
+    parse_raw_lines,
+    parse_wl,
+)
 from .structure import (
     REGEX,
     AuthConfig,
@@ -43,40 +50,6 @@ async def _run_temp_command(
         return None
 
     return float(command.eval_function(float(result)))
-
-
-async def _parse_lines(
-    lines: Iterable[str], regex: Pattern[str]
-) -> Iterable[dict[str, str]]:
-    """
-    Parse the lines using the given regular expression.
-
-    If a line can't be parsed it is logged and skipped in the output.
-    We first map all the lines, and after this filter out any None rows.
-
-    Args:
-        lines (Iterable[str]): A list of lines to parse
-        regex (Pattern[str]): The regex pattern to use on each line
-    """
-
-    def _match(line: str) -> dict[str, str] | None:
-        """
-        Match a single line, will return a None value if no match is made.
-
-        Args:
-            line (str): single line to process
-        """
-        if not line:
-            return None
-
-        match = regex.search(line)
-        if not match:
-            _LOGGER.debug("Could not parse row: %s", line)
-            return None
-
-        return match.groupdict()
-
-    return list(filter(None, map(_match, lines)))
 
 
 @final
@@ -125,31 +98,17 @@ class AsusWrt:
         Args:
             parameter_to_fetch (str): The parameter we are targeting to fetch.
         """
-        data: dict[str, str] = {}
+        result: dict[str, str] = {}
         target: list[str] = Nvram.get(parameter_to_fetch, [])
 
-        lines = await self._connection.run_command(Command.NVRAM)
+        data = await self._connection.run_command(Command.NVRAM)
 
-        if not lines:
+        if not data:
             _LOGGER.warning("Cant fetch Nvram")
             return None
 
-        def _add_to_data(item: str, line: str) -> None:
-            regex = REGEX.NVRAM.format(item)
-            result = findall(regex, line)
-            if result:
-                data[item] = result[0]
-
-        def _match_line(item: str) -> Iterable[None]:
-            return list(
-                map(
-                    lambda line: _add_to_data(item, line),
-                    filter(lambda line: item in line, lines),
-                )
-            )
-
-        _ = list(map(_match_line, target))
-        return data
+        parse_nvram(data, target, result)
+        return result
 
     async def _get_wl(self, devices: dict[str, Device]) -> dict[str, Device]:
         """
@@ -162,12 +121,8 @@ class AsusWrt:
         lines = await self._connection.run_command(Command.WL)
         if not lines:
             return devices
-
-        def _handle(device: dict[str, str]) -> None:
-            mac = device["mac"].upper()
-            devices[mac] = new_device(mac)
-
-        _ = list(map(_handle, await _parse_lines(lines, REGEX.WL)))
+        data = await parse_raw_lines(lines, REGEX.WL)
+        parse_wl(data, devices)
         _LOGGER.info("There are %s devices found in wl", len(devices))
         return devices
 
@@ -182,15 +137,7 @@ class AsusWrt:
         lines = await self._connection.run_command(Command.ARP)
         if not lines:
             return devices
-
-        def _handle(device: dict[str, str]) -> None:
-            mac = device["mac"].upper()
-            if mac not in devices:
-                devices[mac] = new_device(mac)
-            devices[mac].device_data["ip"] = device["ip"]
-            devices[mac].interface["id"] = device["interface"]
-
-        _ = list(map(_handle, await _parse_lines(lines, REGEX.ARP)))
+        parse_arp(await parse_raw_lines(lines, REGEX.ARP), devices)
         _LOGGER.info("There are %s devices found in arp", len(devices))
         return devices
 
@@ -204,34 +151,19 @@ class AsusWrt:
             devices (dict[str, Device]): Currently known device list
         """
         _LOGGER.info("get_leases")
+
         lines: Iterable[str] | None = await self._connection.run_command(
             Command.LEASES.format(self._settings.dnsmasq)
         )
         if not lines:
             return devices
 
-        def _handle(device: dict[str, str]) -> None:
-            mac = device["mac"].upper()
-            host = device.get("host")
-            if host is not None and host != "*":
-                devices[mac].device_data["name"] = host
-
-            devices[mac].device_data["ip"] = device["ip"]
-
-        def _in_devices(device: dict[str, str]) -> bool:
-            return device["mac"].upper() in devices
-
         lines = filter(lambda line: not line.startswith("duid "), lines)
-
         if empty_iter(lines):
             return devices
 
-        _ = list(
-            map(
-                _handle,
-                filter(_in_devices, await _parse_lines(lines, REGEX.LEASES)),
-            )
-        )
+        data = await parse_raw_lines(lines, REGEX.LEASES)
+        parse_leases(data, devices)
         _LOGGER.info("There are %s devices found after leases", len(devices))
         return devices
 
@@ -261,7 +193,7 @@ class AsusWrt:
                 "ip", devices[mac].device_data["ip"]
             )
 
-        _ = list(map(_handle, await _parse_lines(lines, REGEX.IP_NEIGH)))
+        _ = list(map(_handle, await parse_raw_lines(lines, REGEX.IP_NEIGH)))
         _LOGGER.info("There are %s devices found in neigh", len(devices))
         return devices
 
