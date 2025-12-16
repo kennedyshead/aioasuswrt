@@ -165,7 +165,7 @@ class TempCommand(NamedTuple):
     eval_function: Callable[..., float]
 
 
-class Regex(NamedTuple):
+class _Regex(NamedTuple):
     """Regex Mapped to a key."""
 
     VPN_LIST: Pattern[str] = re_compile(
@@ -218,7 +218,7 @@ class Regex(NamedTuple):
     )
 
 
-compiled_regex = Regex()
+REGEX = _Regex()
 
 
 class Command(StrEnum):

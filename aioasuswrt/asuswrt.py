@@ -1,7 +1,6 @@
 """Module for Asuswrt class."""
 
 from collections.abc import Iterable
-from copy import deepcopy
 from logging import getLogger
 from re import Pattern, findall, finditer, split
 from time import time
@@ -9,8 +8,10 @@ from typing import cast, final
 
 from .connection import BaseConnection, create_connection
 from .constant import NETDEV_FIELDS, TEMP_COMMANDS, VPN_COUNT
+from .helpers import empty_iter
 from .parser import parse_clientjson
 from .structure import (
+    REGEX,
     AuthConfig,
     Command,
     Device,
@@ -21,21 +22,10 @@ from .structure import (
     TransferRates,
     new_device,
 )
-from .structure import (
-    compiled_regex as Regex,
-)
 
 _LOGGER = getLogger(__name__)
 
 _BIT_WRAP = 0xFFFFFFFF
-
-
-def _empty_iter(iterable: Iterable[str]) -> bool:
-    try:
-        _ = next(iter(deepcopy(iterable)))
-        return False
-    except StopIteration:
-        return True
 
 
 async def _run_temp_command(
@@ -145,7 +135,7 @@ class AsusWrt:
             return None
 
         def _add_to_data(item: str, line: str) -> None:
-            regex = Regex.NVRAM.format(item)
+            regex = REGEX.NVRAM.format(item)
             result = findall(regex, line)
             if result:
                 data[item] = result[0]
@@ -177,7 +167,7 @@ class AsusWrt:
             mac = device["mac"].upper()
             devices[mac] = new_device(mac)
 
-        _ = list(map(_handle, await _parse_lines(lines, Regex.WL)))
+        _ = list(map(_handle, await _parse_lines(lines, REGEX.WL)))
         _LOGGER.info("There are %s devices found in wl", len(devices))
         return devices
 
@@ -200,7 +190,7 @@ class AsusWrt:
             devices[mac].device_data["ip"] = device["ip"]
             devices[mac].interface["id"] = device["interface"]
 
-        _ = list(map(_handle, await _parse_lines(lines, Regex.ARP)))
+        _ = list(map(_handle, await _parse_lines(lines, REGEX.ARP)))
         _LOGGER.info("There are %s devices found in arp", len(devices))
         return devices
 
@@ -233,13 +223,13 @@ class AsusWrt:
 
         lines = filter(lambda line: not line.startswith("duid "), lines)
 
-        if _empty_iter(lines):
+        if empty_iter(lines):
             return devices
 
         _ = list(
             map(
                 _handle,
-                filter(_in_devices, await _parse_lines(lines, Regex.LEASES)),
+                filter(_in_devices, await _parse_lines(lines, REGEX.LEASES)),
             )
         )
         _LOGGER.info("There are %s devices found after leases", len(devices))
@@ -271,7 +261,7 @@ class AsusWrt:
                 "ip", devices[mac].device_data["ip"]
             )
 
-        _ = list(map(_handle, await _parse_lines(lines, Regex.IP_NEIGH)))
+        _ = list(map(_handle, await _parse_lines(lines, REGEX.IP_NEIGH)))
         _LOGGER.info("There are %s devices found in neigh", len(devices))
         return devices
 
@@ -528,7 +518,7 @@ class AsusWrt:
             return None
 
         vpns: list[dict[str, str]] = []
-        for m in finditer(Regex.VPN_LIST, vpn_list):
+        for m in finditer(REGEX.VPN_LIST, vpn_list):
             vpn_id = m.group("id")
             pid = await self._connection.run_command(
                 Command.GET_PID_OF.format(name=f"vpnclient{vpn_id}")
