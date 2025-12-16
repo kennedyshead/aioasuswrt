@@ -1,6 +1,6 @@
 from copy import deepcopy
 
-from aioasuswrt.asuswrt import _new_device
+from aioasuswrt.structure import new_device
 
 # pylint: skip-file
 RX_DATA = ["2703926881", ""]
@@ -364,10 +364,10 @@ WL_DATA: list[str | None] = [
 WL_MIISING_LINE = deepcopy(WL_DATA)
 WL_MIISING_LINE.append(None)
 WL_DEVICES = {
-    "01:02:03:04:06:08": _new_device("01:02:03:04:06:08"),
-    "08:09:10:11:12:14": _new_device("08:09:10:11:12:14"),
-    "08:09:10:11:12:15": _new_device("08:09:10:11:12:15"),
-    "AB:CD:DE:AB:CD:EF": _new_device("AB:CD:DE:AB:CD:EF"),
+    "01:02:03:04:06:08": new_device("01:02:03:04:06:08"),
+    "08:09:10:11:12:14": new_device("08:09:10:11:12:14"),
+    "08:09:10:11:12:15": new_device("08:09:10:11:12:15"),
+    "AB:CD:DE:AB:CD:EF": new_device("AB:CD:DE:AB:CD:EF"),
 }
 ARP_DATA = [
     "? (123.123.123.125) at 01:02:03:04:06:08 [ether]  on eth0\r",
@@ -384,10 +384,10 @@ ARP_DEVICES["08:09:10:11:12:14"].device_data["ip"] = "123.123.123.126"
 ARP_DEVICES["08:09:10:11:12:14"].interface["id"] = "br0"
 ARP_DEVICES["AB:CD:DE:AB:CD:EF"].device_data["ip"] = "123.123.123.128"
 ARP_DEVICES["AB:CD:DE:AB:CD:EF"].interface["id"] = "br0"
-ARP_DEVICES["00:25:90:12:2D:90"] = _new_device("00:25:90:12:2D:90")
+ARP_DEVICES["00:25:90:12:2D:90"] = new_device("00:25:90:12:2D:90")
 ARP_DEVICES["00:25:90:12:2D:90"].device_data["ip"] = "172.16.10.2"
 ARP_DEVICES["00:25:90:12:2D:90"].interface["id"] = "br0"
-ARP_DEVICES["A0:AD:9F:0F:03:D9"] = _new_device("A0:AD:9F:0F:03:D9")
+ARP_DEVICES["A0:AD:9F:0F:03:D9"] = new_device("A0:AD:9F:0F:03:D9")
 ARP_DEVICES["A0:AD:9F:0F:03:D9"].device_data["ip"] = "169.254.0.2"
 ARP_DEVICES["A0:AD:9F:0F:03:D9"].interface["id"] = "eth.ai-10"
 
@@ -404,12 +404,12 @@ NEIGH_DATA = [
 NEIGH_DEVICES = deepcopy(ARP_DEVICES)
 NEIGH_DEVICES["01:02:03:04:06:08"].device_data["status"] = "REACHABLE"
 NEIGH_DEVICES["08:09:10:11:12:14"].device_data["status"] = "REACHABLE"
-NEIGH_DEVICES["08:09:15:15:15:15"] = _new_device("08:09:15:15:15:15")
+NEIGH_DEVICES["08:09:15:15:15:15"] = new_device("08:09:15:15:15:15")
 NEIGH_DEVICES["08:09:15:15:15:15"].device_data["status"] = "DELAY"
 NEIGH_DEVICES["08:09:15:15:15:15"].device_data["ip"] = "123.123.123.129"
 NEIGH_DEVICES["A0:AD:9F:0F:03:D9"].device_data["status"] = "REACHABLE"
 NEIGH_DEVICES["AB:CD:DE:AB:CD:EF"].device_data["status"] = "REACHABLE"
-NEIGH_DEVICES["FC:FF:A6:FF:12:FF"] = _new_device("FC:FF:A6:FF:12:FF")
+NEIGH_DEVICES["FC:FF:A6:FF:12:FF"] = new_device("FC:FF:A6:FF:12:FF")
 NEIGH_DEVICES["FC:FF:A6:FF:12:FF"].device_data["ip"] = (
     "fe80::feff:a6ff:feff:12ff"
 )

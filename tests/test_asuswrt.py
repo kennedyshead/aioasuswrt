@@ -17,17 +17,17 @@ _BIT_WRAP = 0xFFFFFFFF
 
 
 @pytest.mark.asyncio
-async def test_get_nvram_successful(mocked_wrt: AsusWrt) -> None:
-    """Test get_nvram with successful command."""
-    mocked_wrt._connection.run_command = AsyncMock(return_value=NVRAM_DATA)
-    assert DHCP_DATA == await mocked_wrt.get_nvram("DHCP")
-
-
-@pytest.mark.asyncio
 async def test_get_nvram_empty(mocked_wrt: AsusWrt) -> None:
     """Test get_nvram with successful command."""
     mocked_wrt._connection.run_command = AsyncMock(return_value=[])
     assert await mocked_wrt.get_nvram("DHCP") is None
+
+
+@pytest.mark.asyncio
+async def test_get_nvram_successful(mocked_wrt: AsusWrt) -> None:
+    """Test get_nvram with successful command."""
+    mocked_wrt._connection.run_command = AsyncMock(return_value=NVRAM_DATA)
+    assert DHCP_DATA == await mocked_wrt.get_nvram("DHCP")
 
 
 @pytest.mark.asyncio
@@ -154,3 +154,10 @@ async def test_get_temperature_second_successful(
         "CPU": 77.0,
     }
     mocked_wrt._find_temperature_commands.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_get_vpn_clients_empty(mocked_wrt: AsusWrt) -> None:
+    """Test get_nvram with successful command."""
+    mocked_wrt._connection.run_command = AsyncMock(return_value=[])
+    assert await mocked_wrt.get_vpn_clients() is None

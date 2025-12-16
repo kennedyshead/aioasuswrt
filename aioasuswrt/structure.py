@@ -415,3 +415,17 @@ Nvram = _Nvram(
     LABEL_MAC=_LABEL_MAC,
     VPN=_VPN,
 )
+
+
+def new_device(mac: str) -> Device:
+    """
+    Initialize a new device.
+
+    Args:
+        mac (str): The MAC address of the device
+    """
+    return Device(
+        mac,
+        DeviceData(ip=None, name=None, status=None, rssi=None),
+        Interface(id=None, name=None, mac=None),
+    )

@@ -1,7 +1,7 @@
 """Module for Asuswrt class."""
 
 from collections.abc import Iterable
-from json import loads
+from copy import deepcopy
 from logging import getLogger
 from re import Pattern, findall, finditer, split
 from time import time
@@ -9,18 +9,17 @@ from typing import cast, final
 
 from .connection import BaseConnection, create_connection
 from .constant import NETDEV_FIELDS, TEMP_COMMANDS, VPN_COUNT
+from .parser import parse_clientjson
 from .structure import (
     AuthConfig,
     Command,
     Device,
-    DeviceData,
-    Interface,
-    InterfaceJson,
     Mode,
     Nvram,
     Settings,
     TempCommand,
     TransferRates,
+    new_device,
 )
 from .structure import (
     compiled_regex as Regex,
@@ -31,17 +30,29 @@ _LOGGER = getLogger(__name__)
 _BIT_WRAP = 0xFFFFFFFF
 
 
+def _empty_iter(iterable: Iterable[str]) -> bool:
+    try:
+        _ = next(iter(deepcopy(iterable)))
+        return False
+    except StopIteration:
+        return True
+
+
 async def _run_temp_command(
     api: BaseConnection, command: TempCommand
 ) -> float | None:
     command_result: list[str] | None = await api.run_command(
         str(command.cli_command)
     )
-    if command_result:
-        result = command_result[0].split(" ")[int(command.result_location)]
-        if result.isnumeric():
-            return float(command.eval_function(float(result)))
-    return None
+
+    if not command_result:
+        return None
+
+    result = command_result[0].split(" ")[int(command.result_location)]
+    if not result.isnumeric():
+        return None
+
+    return float(command.eval_function(float(result)))
 
 
 async def _parse_lines(
@@ -67,27 +78,15 @@ async def _parse_lines(
         """
         if not line:
             return None
+
         match = regex.search(line)
         if not match:
             _LOGGER.debug("Could not parse row: %s", line)
             return None
+
         return match.groupdict()
 
     return list(filter(None, map(_match, lines)))
-
-
-def _new_device(mac: str) -> Device:
-    """
-    Initialize a new device.
-
-    Args:
-        mac (str): The MAC address of the device
-    """
-    return Device(
-        mac,
-        DeviceData(ip=None, name=None, status=None, rssi=None),
-        Interface(id=None, name=None, mac=None),
-    )
 
 
 @final
@@ -173,13 +172,12 @@ class AsusWrt:
         lines = await self._connection.run_command(Command.WL)
         if not lines:
             return devices
-        result = await _parse_lines(lines, Regex.WL)
 
         def _handle(device: dict[str, str]) -> None:
             mac = device["mac"].upper()
-            devices[mac] = _new_device(mac)
+            devices[mac] = new_device(mac)
 
-        _ = list(map(_handle, result))
+        _ = list(map(_handle, await _parse_lines(lines, Regex.WL)))
         _LOGGER.info("There are %s devices found in wl", len(devices))
         return devices
 
@@ -194,16 +192,15 @@ class AsusWrt:
         lines = await self._connection.run_command(Command.ARP)
         if not lines:
             return devices
-        result = await _parse_lines(lines, Regex.ARP)
 
         def _handle(device: dict[str, str]) -> None:
             mac = device["mac"].upper()
             if mac not in devices:
-                devices[mac] = _new_device(mac)
+                devices[mac] = new_device(mac)
             devices[mac].device_data["ip"] = device["ip"]
             devices[mac].interface["id"] = device["interface"]
 
-        _ = list(map(_handle, result))
+        _ = list(map(_handle, await _parse_lines(lines, Regex.ARP)))
         _LOGGER.info("There are %s devices found in arp", len(devices))
         return devices
 
@@ -222,8 +219,6 @@ class AsusWrt:
         )
         if not lines:
             return devices
-        lines = filter(lambda line: not line.startswith("duid "), lines)
-        result = await _parse_lines(lines, Regex.LEASES)
 
         def _handle(device: dict[str, str]) -> None:
             mac = device["mac"].upper()
@@ -236,7 +231,17 @@ class AsusWrt:
         def _in_devices(device: dict[str, str]) -> bool:
             return device["mac"].upper() in devices
 
-        _ = list(map(_handle, filter(_in_devices, result)))
+        lines = filter(lambda line: not line.startswith("duid "), lines)
+
+        if _empty_iter(lines):
+            return devices
+
+        _ = list(
+            map(
+                _handle,
+                filter(_in_devices, await _parse_lines(lines, Regex.LEASES)),
+            )
+        )
         _LOGGER.info("There are %s devices found after leases", len(devices))
         return devices
 
@@ -253,20 +258,20 @@ class AsusWrt:
         lines = await self._connection.run_command(Command.IP_NEIGH)
         if not lines:
             return devices
-        result = await _parse_lines(lines, Regex.IP_NEIGH)
 
         def _handle(device: dict[str, str]) -> None:
-            if device.get("mac"):
-                status = device["status"]
-                mac = device["mac"].upper()
-                if mac not in devices:
-                    devices[mac] = _new_device(mac)
-                devices[mac].device_data["status"] = status
-                devices[mac].device_data["ip"] = device.get(
-                    "ip", devices[mac].device_data["ip"]
-                )
+            if not device.get("mac"):
+                return
+            status = device["status"]
+            mac = device["mac"].upper()
+            if mac not in devices:
+                devices[mac] = new_device(mac)
+            devices[mac].device_data["status"] = status
+            devices[mac].device_data["ip"] = device.get(
+                "ip", devices[mac].device_data["ip"]
+            )
 
-        _ = list(map(_handle, result))
+        _ = list(map(_handle, await _parse_lines(lines, Regex.IP_NEIGH)))
         _LOGGER.info("There are %s devices found in neigh", len(devices))
         return devices
 
@@ -284,28 +289,8 @@ class AsusWrt:
         if not lines:
             return devices
 
-        def _parse_client_json(data: str) -> None:
-            device_list = InterfaceJson(loads(data))
-            for interface_mac, interface in device_list.items():
-                for conn_type, conn_items in interface.items():
-                    for dev_mac in conn_items:
-                        mac = dev_mac.upper()
-                        device = conn_items[mac]
-                        ip = device.get("ip")
-                        if not isinstance(ip, str):
-                            ip = None
-                        rssi = device.get("rssi", None)
-                        if mac not in devices:
-                            devices[mac] = _new_device(mac)
-                        devices[mac].device_data["ip"] = ip
-                        devices[mac].device_data["rssi"] = (
-                            int(rssi) if rssi else None
-                        )
-                        devices[mac].interface["name"] = conn_type
-                        devices[mac].interface["mac"] = interface_mac
-
         try:
-            _parse_client_json(lines[0])
+            parse_clientjson(lines[0], devices)
             _LOGGER.debug(
                 "There are %s devices found after clientlist.json",
                 len(devices),
@@ -534,10 +519,13 @@ class AsusWrt:
     async def get_vpn_clients(self) -> list[dict[str, str]] | None:
         """Get current vpn clients."""
         data = await self.get_nvram("VPN")
+
         if not data:
             return None
 
-        vpn_list = data["vpnc_clientlist"]
+        vpn_list = data.get("vpnc_clientlist")
+        if not vpn_list:
+            return None
 
         vpns: list[dict[str, str]] = []
         for m in finditer(Regex.VPN_LIST, vpn_list):
