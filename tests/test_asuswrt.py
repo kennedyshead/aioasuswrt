@@ -365,3 +365,14 @@ async def test_get_dns_records_null(mocked_wrt: AsusWrt) -> None:
         run_command=AsyncMock(return_value=None),
     )
     assert await mocked_wrt.get_dns_records() is None
+
+
+@pytest.mark.asyncio
+async def test_total_transfer(mocked_wrt: AsusWrt) -> None:
+    """Test start_vpn_client successfully called."""
+    mocked_wrt._connection = MagicMock(
+        autospec=BaseConnection,
+        run_command=AsyncMock(),
+    )
+    mocked_wrt._total_bytes = TransferRates(10, 10)
+    assert await mocked_wrt.total_transfer() == {"rx": 10, "tx": 10}
