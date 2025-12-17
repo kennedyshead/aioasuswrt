@@ -363,6 +363,7 @@ WL_DATA: list[str | None] = [
 ]
 WL_MIISING_LINE = deepcopy(WL_DATA)
 WL_MIISING_LINE.append(None)
+
 WL_DEVICES = {
     "01:02:03:04:06:08": new_device("01:02:03:04:06:08"),
     "08:09:10:11:12:14": new_device("08:09:10:11:12:14"),
@@ -377,6 +378,7 @@ ARP_DATA = [
     "? (172.16.10.2) at 00:25:90:12:2D:90 [ether]  on br0\r",
     "? (169.254.0.2) at a0:ad:9f:0f:03:d9 [ether] on eth.ai-10\r",
 ]
+
 ARP_DEVICES = deepcopy(WL_DEVICES)
 ARP_DEVICES["01:02:03:04:06:08"].device_data["ip"] = "123.123.123.125"
 ARP_DEVICES["01:02:03:04:06:08"].interface["id"] = "eth0"
@@ -390,8 +392,6 @@ ARP_DEVICES["00:25:90:12:2D:90"].interface["id"] = "br0"
 ARP_DEVICES["A0:AD:9F:0F:03:D9"] = new_device("A0:AD:9F:0F:03:D9")
 ARP_DEVICES["A0:AD:9F:0F:03:D9"].device_data["ip"] = "169.254.0.2"
 ARP_DEVICES["A0:AD:9F:0F:03:D9"].interface["id"] = "eth.ai-10"
-
-
 NEIGH_DATA = [
     "123.123.123.125 dev eth0 lladdr 01:02:03:04:06:08 REACHABLE\r",
     "123.123.123.126 dev br0 lladdr 08:09:10:11:12:14 REACHABLE\r",
@@ -401,6 +401,7 @@ NEIGH_DATA = [
     "fe80::feff:a6ff:feff:12ff dev br0 lladdr fc:ff:a6:ff:12:ff STALE\r",
     "169.254.0.2 dev eth.ai-10 lladdr a0:ad:9f:0f:03:d9 REACHABLE\r",
 ]
+
 NEIGH_DEVICES = deepcopy(ARP_DEVICES)
 NEIGH_DEVICES["01:02:03:04:06:08"].device_data["status"] = "REACHABLE"
 NEIGH_DEVICES["08:09:10:11:12:14"].device_data["status"] = "REACHABLE"
@@ -414,14 +415,16 @@ NEIGH_DEVICES["FC:FF:A6:FF:12:FF"].device_data["ip"] = (
     "fe80::feff:a6ff:feff:12ff"
 )
 NEIGH_DEVICES["FC:FF:A6:FF:12:FF"].device_data["status"] = "STALE"
-
-LEASES_DATA = [  # android device is not present
+LEASES_DATA = [
     "51910 01:02:03:04:06:08 123.123.123.125 TV 01:02:03:04:06:08\r",
     "79986 01:02:03:04:06:10 123.123.123.127 android 01:02:03:04:06:10\r",
     "23523 08:09:10:11:12:14 123.123.123.126 * 08:09:10:11:12:14\r",
+    "35556 08:09:15:15:15:15 123.123.123.129 Test 08:09:15:15:15:15\r",
 ]
+
 LEASES_DEVICES = deepcopy(NEIGH_DEVICES)
 LEASES_DEVICES["01:02:03:04:06:08"].device_data["name"] = "TV"
+LEASES_DEVICES["08:09:15:15:15:15"].device_data["name"] = "Test"
 
 WAKE_DEVICES_AP = deepcopy(NEIGH_DEVICES)
 WAKE_DEVICES_AP["01:02:03:04:06:08"].interface["name"] = "2G"
@@ -433,6 +436,20 @@ WAKE_DEVICES_AP["08:09:10:11:12:14"].interface["name"] = "5G"
 WAKE_DEVICES_AP["08:09:10:11:12:14"].interface["mac"] = "A2:2A:54:EC:20:3F"
 WAKE_DEVICES_AP["08:09:10:11:12:14"].device_data["rssi"] = -68
 
+WAKE_DEVICES = deepcopy(WAKE_DEVICES_AP)
+WAKE_DEVICES["01:02:03:04:06:08"].device_data["name"] = "TV"
+WAKE_DEVICES["08:09:15:15:15:15"].device_data["name"] = "Test"
+
+WAKE_DEVICES_REQIRE_IP = deepcopy(WAKE_DEVICES)
+del WAKE_DEVICES_REQIRE_IP["08:09:10:11:12:15"]
+
+WAKE_DEVICES_REACHABLE = deepcopy(WAKE_DEVICES)
+del WAKE_DEVICES_REACHABLE["08:09:15:15:15:15"]
+
+WAKE_DEVICES_REACHABLE_AND_IP = deepcopy(WAKE_DEVICES)
+del WAKE_DEVICES_REACHABLE_AND_IP["08:09:15:15:15:15"]
+del WAKE_DEVICES_REACHABLE_AND_IP["08:09:10:11:12:15"]
+
 WAKE_DEVICES_AP_NO_IP = deepcopy(WAKE_DEVICES_AP)
 
 CLIENTLIST_DATA = [
@@ -441,6 +458,15 @@ CLIENTLIST_DATA = [
         '{"ip":"123.123.123.125","rssi":"-83"}},"5G":{"08:09:10:11:12:14":'
         '{"ip":"123.123.123.126","rssi": "-68"}},'
         '"wired_mac":{"08:09:15:15:15:15":{"ip":"123.123.123.129"}}}}'
+    )
+]
+
+BAD_CLIENTLIST_DATA = [
+    (
+        '{"A2:2A:54:EC:20:3F":{"2G":{"01:02:03:04:06:08":'
+        '{"ip":"123.123.123.125","rssi":"-83"}},"5G":{"08:09:10:11:12:14":'
+        '{"ip":"123.123.123.126","rssi": "-68"}},'
+        '"wired_mac":{"08:09:15:15:15:15":{"ip":"123.123.123.129"}}}'
     )
 ]
 
@@ -461,3 +487,9 @@ DHCP_DATA = {
     "dhcp_end": "666",
     "dhcp_lease": "777",
 }
+
+HOST_DATA = (
+    "127.0.0.1 localhost.localdomain localhost",
+    "192.168.1.1 RT-AC88U-2780. RT-AC88U-2780",
+    "192.168.1.1 RT-AC88U-2780.local",
+)

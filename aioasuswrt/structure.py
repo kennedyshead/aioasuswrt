@@ -5,6 +5,8 @@ from re import Pattern
 from re import compile as re_compile
 from typing import Callable, NamedTuple, TypeAlias, TypedDict
 
+from .constant import DEFAULT_DNSMASQ, DEFAULT_WAN_INTERFACE
+
 _VPN_COUNT: int = 5
 
 
@@ -94,6 +96,13 @@ class ConnectionType(StrEnum):
     TELNET = "TELNET"
 
 
+class DNSRecord(TypedDict):
+    """DNS record representation."""
+
+    ip: str
+    host_names: list[str]
+
+
 class AuthConfig(TypedDict):
     """
     Authentication configuration
@@ -144,8 +153,8 @@ class Settings(NamedTuple):
 
     require_ip: bool = False
     mode: Mode | None = Mode.ROUTER
-    dnsmasq: str = "/var/lib/misc"
-    wan_interface: str = "eth0"
+    dnsmasq: str = DEFAULT_DNSMASQ
+    wan_interface: str = DEFAULT_WAN_INTERFACE
 
 
 class TempCommand(NamedTuple):
@@ -192,6 +201,9 @@ class _Regex(NamedTuple):
             r"(?P<mac>(([0-9A-F]{2}[:-]){5}([0-9A-F]{2})))"
         )
     )
+    HOSTS: Pattern[str] = re_compile(
+        r"(?P<ip>(.+[\d][\.][\d]))[\s](?P<hosts>([a-zA-Z].+))"
+    )
     NVRAM: str = "^{}=([\\w.\\-/: <>]+)"
     IP_NEIGH: Pattern[str] = re_compile(
         (
@@ -231,6 +243,7 @@ class Command(StrEnum):
 
     MEMINFO = "cat /proc/meminfo"
     LOADAVG = "cat /proc/loadavg"
+    LISTHOSTS = "cat /etc/hosts"
     ADDHOST = (
         'cat /etc/hosts | grep -q "{ipaddress} {hostname}" || '
         '(echo "{ipaddress} {hostname}" >> /etc/hosts && '
@@ -429,3 +442,81 @@ def new_device(mac: str) -> Device:
         DeviceData(ip=None, name=None, status=None, rssi=None),
         Interface(id=None, name=None, mac=None),
     )
+
+
+def _eval_divide_two_plus_twenty(val: float) -> float:
+    """
+    A filter to use on the retrieved float
+
+    val / 2 + 20
+
+    Args:
+        val (float): Raw value from router
+    """
+    return val / 2 + 20
+
+
+def _eval_divide_one_thousand(val: float) -> float:
+    """
+    A filter to use on the retrieved float
+
+    val / 1000
+
+    Args:
+        val (float): Raw value from router
+    """
+    if val < 1000:
+        raise ValueError(f"Value for dividing with 1000 is to low {val}")
+    return val / 1000
+
+
+def _eval_no_change(val: float) -> float:
+    """
+    A filter to use on the retrieved float
+
+    Dummy method just returns the val
+
+    Args:
+        val (float): Raw value from router
+    """
+    return val
+
+
+_TEMP_24_CMDS: list[TempCommand] = [
+    TempCommand(
+        "wl -i eth1 phy_tempsense",
+        0,
+        _eval_divide_two_plus_twenty,
+    ),
+    TempCommand(
+        "wl -i eth5 phy_tempsense",
+        0,
+        _eval_divide_two_plus_twenty,
+    ),
+]
+_TEMP_5_CMDS: list[TempCommand] = [
+    TempCommand(
+        "wl -i eth2 phy_tempsense",
+        0,
+        _eval_divide_two_plus_twenty,
+    ),
+    TempCommand(
+        "wl -i eth6 phy_tempsense",
+        0,
+        _eval_divide_two_plus_twenty,
+    ),
+]
+_TEMP_CPU_CMDS: list[TempCommand] = [
+    TempCommand("head -c20 /proc/dmu/temperature", 2, _eval_no_change),
+    TempCommand(
+        "head -c5 /sys/class/thermal/thermal_zone0/temp",
+        0,
+        _eval_divide_one_thousand,
+    ),
+]
+
+TEMP_COMMANDS: dict[str, list[TempCommand]] = {
+    "2.4GHz": _TEMP_24_CMDS,
+    "5.0GHz": _TEMP_5_CMDS,
+    "CPU": _TEMP_CPU_CMDS,
+}

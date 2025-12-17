@@ -185,6 +185,9 @@ class SshConnection(BaseConnection):
         except ChannelOpenError:
             _LOGGER.info("Router disconnected, will try to connect again.")
             await self.disconnect()
+        except TimeoutError:
+            _LOGGER.info("Router timed out when running command")
+            await self._disconnect()
         return None
 
     @property
@@ -205,11 +208,17 @@ class SshConnection(BaseConnection):
             known_hosts=self._known_hosts,
             client_keys=[self._ssh_key] if self._ssh_key else None,
         )
-        err: FileNotFoundError | KeyImportError | KeyEncryptionError | None = (
-            None
-        )
+        err: (
+            FileNotFoundError
+            | KeyImportError
+            | KeyEncryptionError
+            | TimeoutError
+            | None
+        ) = None
         try:
-            self._client = await connect(self._host, **kwargs)
+            self._client = await connect(
+                self._host, connect_timeout=9, **kwargs
+            )
         except FileNotFoundError as exc:
             err = exc
             if self._ssh_key:
@@ -231,7 +240,11 @@ class SshConnection(BaseConnection):
             _LOGGER.warning(
                 "The given key is not accepted with error (%s)", err
             )
+        except TimeoutError as exc:
+            err = exc
+            _LOGGER.warning("Connection to server timed out")
         if err:
+            await self._disconnect()
             raise ConnectionError("Unable to connect to router") from err
 
     @override

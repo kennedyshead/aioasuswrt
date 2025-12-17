@@ -1,7 +1,7 @@
 """Parser module"""
 
 from collections.abc import Iterable
-from json import loads
+from json import JSONDecodeError, loads
 from logging import getLogger
 from re import Pattern, findall
 
@@ -132,6 +132,28 @@ def parse_arp(
     _ = list(map(lambda row: _parse_arp_row(row, devices), data))
 
 
+def _parse_neigh_row(
+    device: dict[str, str], devices: dict[str, Device]
+) -> None:
+    if not device.get("mac"):
+        return
+    status = device["status"]
+    mac = device["mac"].upper()
+    if mac not in devices:
+        devices[mac] = new_device(mac)
+    devices[mac].device_data["status"] = status
+    devices[mac].device_data["ip"] = device.get(
+        "ip", devices[mac].device_data["ip"]
+    )
+
+
+def parse_neigh(
+    data: Iterable[dict[str, str]], devices: dict[str, Device]
+) -> None:
+    """Parse neigh data."""
+    _ = list(map(lambda row: _parse_neigh_row(row, devices), data))
+
+
 def _parse_device_clientjson(
     interface_mac: str,
     conn_type: str,
@@ -190,7 +212,11 @@ def _handle_clientjson(
 
 def parse_clientjson(data: str, devices: dict[str, Device]) -> None:
     """Parse clientlist.json file"""
-    device_list = InterfaceJson(loads(data))
+    try:
+        device_list = InterfaceJson(loads(data))
+    except JSONDecodeError:
+        _LOGGER.info("clientlist.json is corrupt.")
+        return
     _ = list(
         map(
             lambda interface_mac: _handle_clientjson(

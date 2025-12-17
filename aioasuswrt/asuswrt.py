@@ -7,27 +7,29 @@ from time import time
 from typing import cast, final
 
 from .connection import BaseConnection, create_connection
-from .constant import NETDEV_FIELDS, TEMP_COMMANDS, VPN_COUNT
+from .constant import NETDEV_FIELDS, VPN_COUNT
 from .helpers import empty_iter
 from .parsers import (
     parse_arp,
     parse_clientjson,
     parse_leases,
+    parse_neigh,
     parse_nvram,
     parse_raw_lines,
     parse_wl,
 )
 from .structure import (
     REGEX,
+    TEMP_COMMANDS,
     AuthConfig,
     Command,
     Device,
+    DNSRecord,
     Mode,
     Nvram,
     Settings,
     TempCommand,
     TransferRates,
-    new_device,
 )
 
 _LOGGER = getLogger(__name__)
@@ -44,12 +46,149 @@ async def _run_temp_command(
 
     if not command_result:
         return None
+    try:
+        result = command_result[0].split(" ")[int(command.result_location)]
+    except IndexError:
+        return None
 
-    result = command_result[0].split(" ")[int(command.result_location)]
-    if not result.isnumeric():
+    if not result or result and not result.isnumeric():
         return None
 
     return float(command.eval_function(float(result)))
+
+
+async def _filter_dev_list(
+    devices: dict[str, Device], reachable: bool, require_ip: bool
+) -> dict[str, Device] | None:
+    def _reachable(reachable: bool, dev: Device) -> bool:
+        return (
+            not reachable
+            or reachable
+            and dev.device_data.get("status") in ["REACHABLE", "STALE", None]
+        )
+
+    def _ip_check(dev: Device, require_ip: bool) -> bool:
+        return (
+            not require_ip
+            or require_ip
+            and dev.device_data.get("ip") is not None
+        )
+
+    return (
+        {
+            key: dev
+            for key, dev in devices.items()
+            if _reachable(reachable, dev) and _ip_check(dev, require_ip)
+        }
+        if len(devices) > 0
+        else None
+    )
+
+
+async def _get_wl(
+    connection: BaseConnection, devices: dict[str, Device]
+) -> dict[str, Device]:
+    """
+    Add devices fount in wl.
+
+    Args:
+        devices (dict[str, Device]): Currently known device list
+    """
+    _LOGGER.info("get_wl")
+
+    lines = await connection.run_command(Command.WL)
+    if not lines:
+        return devices
+
+    parse_wl(await parse_raw_lines(lines, REGEX.WL), devices)
+    _LOGGER.info("There are %s devices found in wl", len(devices))
+    return devices
+
+
+async def _get_arp(
+    connection: BaseConnection, devices: dict[str, Device]
+) -> dict[str, Device]:
+    """
+    Add devices found in arp.
+
+    Args:
+        devices (dict[str, Device]): Currently known device list
+    """
+    _LOGGER.info("get_arp")
+    lines = await connection.run_command(Command.ARP)
+    if not lines:
+        return devices
+    parse_arp(await parse_raw_lines(lines, REGEX.ARP), devices)
+    _LOGGER.info("There are %s devices found in arp", len(devices))
+    return devices
+
+
+async def _get_leases(
+    connection: BaseConnection, devices: dict[str, Device], dnsmasq: str
+) -> dict[str, Device]:
+    """
+    Add devices found in leases.
+
+    Args:
+        devices (dict[str, Device]): Currently known device list
+    """
+    _LOGGER.info("get_leases")
+
+    lines: Iterable[str] | None = await connection.run_command(
+        Command.LEASES.format(dnsmasq)
+    )
+    if not lines:
+        return devices
+
+    lines = filter(lambda line: not line.startswith("duid "), lines)
+    if empty_iter(lines):
+        return devices
+
+    parse_leases(await parse_raw_lines(lines, REGEX.LEASES), devices)
+    _LOGGER.info("There are %s devices found after leases", len(devices))
+    return devices
+
+
+async def _get_neigh(
+    connection: BaseConnection, devices: dict[str, Device]
+) -> dict[str, Device]:
+    """
+    Add devices found in neigh.
+
+    Args:
+        devices (dict[str, Device]): Currently known device list
+    """
+    _LOGGER.info("get_neigh")
+
+    lines = await connection.run_command(Command.IP_NEIGH)
+    if not lines:
+        return devices
+
+    parse_neigh(await parse_raw_lines(lines, REGEX.IP_NEIGH), devices)
+    _LOGGER.info("There are %s devices found in neigh", len(devices))
+    return devices
+
+
+async def _get_clientjson(
+    connection: BaseConnection, devices: dict[str, Device]
+) -> dict[str, Device]:
+    """
+    Filter devices list using 'clientlist.json' file if available.
+
+    Args:
+        devices (dict[str, Device]): Currently known device list
+    """
+    _LOGGER.info("filter_dev_list")
+    lines = await connection.run_command(Command.CLIENTLIST)
+    if not lines:
+        return devices
+
+    parse_clientjson(lines[0], devices)
+    _LOGGER.debug(
+        "There are %s devices found after clientlist.json",
+        len(devices),
+    )
+    return devices
 
 
 @final
@@ -110,121 +249,10 @@ class AsusWrt:
         parse_nvram(data, target, result)
         return result
 
-    async def _get_wl(self, devices: dict[str, Device]) -> dict[str, Device]:
-        """
-        Add devices fount in wl.
-
-        Args:
-            devices (dict[str, Device]): Currently known device list
-        """
-        _LOGGER.info("get_wl")
-        lines = await self._connection.run_command(Command.WL)
-        if not lines:
-            return devices
-        data = await parse_raw_lines(lines, REGEX.WL)
-        parse_wl(data, devices)
-        _LOGGER.info("There are %s devices found in wl", len(devices))
-        return devices
-
-    async def _get_arp(self, devices: dict[str, Device]) -> dict[str, Device]:
-        """
-        Add devices found in arp.
-
-        Args:
-            devices (dict[str, Device]): Currently known device list
-        """
-        _LOGGER.info("get_arp")
-        lines = await self._connection.run_command(Command.ARP)
-        if not lines:
-            return devices
-        parse_arp(await parse_raw_lines(lines, REGEX.ARP), devices)
-        _LOGGER.info("There are %s devices found in arp", len(devices))
-        return devices
-
-    async def _get_leases(
-        self, devices: dict[str, Device]
-    ) -> dict[str, Device]:
-        """
-        Add devices found in leases.
-
-        Args:
-            devices (dict[str, Device]): Currently known device list
-        """
-        _LOGGER.info("get_leases")
-
-        lines: Iterable[str] | None = await self._connection.run_command(
-            Command.LEASES.format(self._settings.dnsmasq)
-        )
-        if not lines:
-            return devices
-
-        lines = filter(lambda line: not line.startswith("duid "), lines)
-        if empty_iter(lines):
-            return devices
-
-        data = await parse_raw_lines(lines, REGEX.LEASES)
-        parse_leases(data, devices)
-        _LOGGER.info("There are %s devices found after leases", len(devices))
-        return devices
-
-    async def _get_neigh(
-        self, devices: dict[str, Device]
-    ) -> dict[str, Device]:
-        """
-        Add devices found in neigh.
-
-        Args:
-            devices (dict[str, Device]): Currently known device list
-        """
-        _LOGGER.info("get_neigh")
-        lines = await self._connection.run_command(Command.IP_NEIGH)
-        if not lines:
-            return devices
-
-        def _handle(device: dict[str, str]) -> None:
-            if not device.get("mac"):
-                return
-            status = device["status"]
-            mac = device["mac"].upper()
-            if mac not in devices:
-                devices[mac] = new_device(mac)
-            devices[mac].device_data["status"] = status
-            devices[mac].device_data["ip"] = device.get(
-                "ip", devices[mac].device_data["ip"]
-            )
-
-        _ = list(map(_handle, await parse_raw_lines(lines, REGEX.IP_NEIGH)))
-        _LOGGER.info("There are %s devices found in neigh", len(devices))
-        return devices
-
-    async def _filter_dev_list(
-        self, devices: dict[str, Device]
-    ) -> dict[str, Device]:
-        """
-        Filter devices list using 'clientlist.json' file if available.
-
-        Args:
-            devices (dict[str, Device]): Currently known device list
-        """
-        _LOGGER.info("filter_dev_list")
-        lines = await self._connection.run_command(Command.CLIENTLIST)
-        if not lines:
-            return devices
-
-        try:
-            parse_clientjson(lines[0], devices)
-            _LOGGER.debug(
-                "There are %s devices found after clientlist.json",
-                len(devices),
-            )
-        except (TypeError, ValueError, AssertionError):
-            _LOGGER.warning("Unable to parse clientlist.json")
-        return devices
-
     async def get_connected_devices(
         self,
         reachable: bool = False,
-    ) -> dict[str, Device]:
+    ) -> dict[str, Device] | None:
         """
         Retrieve devices and as much info as possible.
 
@@ -239,32 +267,22 @@ class AsusWrt:
                 filter out all devices that have not REACHABLE as status
 
         """
-        devices: dict[str, Device] = await self._get_wl({})
+        connection = self._connection
+        devices: dict[str, Device] = await _get_wl(connection, {})
         _LOGGER.debug(devices)
-        devices = await self._get_arp(devices)
+        devices = await _get_arp(connection, devices)
         _LOGGER.debug(devices)
-        devices = await self._get_neigh(devices)
+        devices = await _get_neigh(connection, devices)
         _LOGGER.debug(devices)
         if self._settings.mode != Mode.AP:
-            devices = await self._get_leases(devices)
+            devices = await _get_leases(
+                connection, devices, self._settings.dnsmasq
+            )
             _LOGGER.debug(devices)
-
-        devices = await self._filter_dev_list(devices)
-        _LOGGER.debug(devices)
-        if reachable:
-            devices = {
-                key: dev
-                for key, dev in devices.items()
-                if dev.device_data.get("status")
-                in ["REACHABLE", "STALE", None]
-            }
-        if not self._settings.require_ip:
-            return devices
-        return {
-            key: dev
-            for key, dev in devices.items()
-            if dev.device_data.get("ip") is not None
-        }
+        devices = await _get_clientjson(connection, devices)
+        return await _filter_dev_list(
+            devices, reachable, self._settings.require_ip
+        )
 
     async def get_current_transfer_rates(
         self,
@@ -329,15 +347,37 @@ class AsusWrt:
         loadavg = list(
             map(
                 float,
-                _loadavg[0].split(" ")[0:3],
+                filter(None, _loadavg[0].split(" ")[0:3]),
             )
         )
-        _keys = [
-            "sensor_load_avg1",
-            "sensor_load_avg5",
-            "sensor_load_avg15",
-        ]
-        return {f"{_keys[index]}": loadavg[index] for index in range(3)}
+        if not len(loadavg) >= 3:
+            return None
+
+        return {
+            "sensor_load_avg1": loadavg[0],
+            "sensor_load_avg5": loadavg[1],
+            "sensor_load_avg15": loadavg[2],
+        }
+
+    async def get_dns_records(self) -> dict[str, DNSRecord] | None:
+        """Get a list of all dns records in hosts file."""
+        ret: dict[str, DNSRecord] = {}
+
+        lines = await self._connection.run_command(Command.LISTHOSTS)
+        if not lines:
+            return None
+
+        def _to_record(row: dict[str, str]) -> None:
+            ip = row["ip"]
+            hosts = row["hosts"].split(" ")
+            if ip in ret:
+                ret[ip]["host_names"] += hosts
+                return
+            ret[ip] = DNSRecord(ip=row["ip"], host_names=hosts)
+
+        data = await parse_raw_lines(lines, REGEX.HOSTS)
+        _ = list(map(_to_record, data))
+        return ret
 
     async def add_dns_record(
         self, hostname: str, ipaddress: str
@@ -349,11 +389,11 @@ class AsusWrt:
             hostname (str): Hostname to add
             ipaddress (str): IP address to add
         """
-        _records: list[str] | None = await self._connection.run_command(
+        _records = await self._connection.run_command(
             Command.ADDHOST.format(hostname=hostname, ipaddress=ipaddress)
         )
         if _records:
-            return _records
+            return list(_records)
         return None
 
     async def get_interface_counters(
@@ -410,16 +450,14 @@ class AsusWrt:
             temp_command: TempCommand
             ret[interface] = 0.0
             for temp_command in commands:
-                try:
-                    result = await _run_temp_command(
-                        self._connection, temp_command
-                    )
-                    if result:
-                        self._temps_commands[interface] = temp_command
-                        ret[interface] = result
-                        break
-                except (ValueError, IndexError, OSError):
+                result = await _run_temp_command(
+                    self._connection, temp_command
+                )
+                if not result:
                     continue
+                self._temps_commands[interface] = temp_command
+                ret[interface] = result
+                break
         return ret
 
     async def get_temperature(self) -> dict[str, float] | None:
