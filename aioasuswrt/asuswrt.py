@@ -361,8 +361,17 @@ class AsusWrt:
             "sensor_load_avg15": loadavg[2],
         }
 
+    async def get_meminfo(self) -> list[dict[str, str]] | None:
+        """Get memory information."""
+        lines = await self._connection.run_command(Command.MEMINFO)
+        if not lines:
+            return None
+        data = await parse_raw_lines(lines, REGEX.MEMINFO)
+
+        return list(data)
+
     async def get_dns_records(self) -> dict[str, DNSRecord] | None:
-        """Get a list of all dns records in hosts file."""
+        """Get all dns records in hosts file."""
         ret: dict[str, DNSRecord] = {}
 
         lines = await self._connection.run_command(Command.LISTHOSTS)

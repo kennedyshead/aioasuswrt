@@ -3,11 +3,12 @@
 # pylint: disable=protected-access
 # pyright: reportPrivateUsage=false
 
-from unittest.mock import patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from aioasuswrt.asuswrt import AsusWrt
+from aioasuswrt.connection import BaseConnection
 from aioasuswrt.constant import DEFAULT_DNSMASQ
 from aioasuswrt.structure import AuthConfig, Command, ConnectionType, Settings
 from tests.common import (
@@ -39,7 +40,12 @@ def successful_get_devices_commands(
 @pytest.fixture
 def mocked_wrt() -> AsusWrt:
     """AsusWrt with mocked connection."""
-    with patch("aioasuswrt.asuswrt.create_connection") as _connection:
+    with patch(
+        "aioasuswrt.asuswrt.create_connection",
+        return_value=MagicMock(
+            autospec=BaseConnection, run_command=AsyncMock(return_value=None)
+        ),
+    ):
         router = AsusWrt(
             "fake",
             AuthConfig(

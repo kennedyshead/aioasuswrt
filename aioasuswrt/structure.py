@@ -174,6 +174,10 @@ class TempCommand(NamedTuple):
 class _Regex(NamedTuple):
     """Regex Mapped to a key."""
 
+    MEMINFO: Pattern[str] = re_compile(
+        r"(?P<label>(.+[a-zA-Z\(\)]))[:\s]+\s(?P<kb>([\d]+))"
+    )
+
     VPN_LIST: Pattern[str] = re_compile(
         (
             r"(?P<description>.+?)>"
@@ -236,6 +240,7 @@ class Command(StrEnum):
     GET_PID_OF = "pidof {name}"
     NETDEV = "cat /proc/net/dev"
 
+    UPTIME = "cat /proc/uptime"
     MEMINFO = "cat /proc/meminfo"
     LOADAVG = "cat /proc/loadavg"
     LISTHOSTS = "cat /etc/hosts"
