@@ -238,9 +238,8 @@ class AsusWrt:
         """
         target: str = r"\|".join(Nvram.get(parameter_to_fetch, set()))
         cmd = Command.NVRAM.format(target)
-        print(cmd)
-        data = await self._connection.run_command(cmd)
 
+        data = await self._connection.run_command(cmd)
         if not data:
             _LOGGER.warning("Cant fetch Nvram")
             return None
