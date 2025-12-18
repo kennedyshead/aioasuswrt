@@ -39,14 +39,16 @@ _BIT_WRAP = 0xFFFFFFFF
 async def _run_temp_command(
     api: BaseConnection, command: TempCommand
 ) -> float | None:
-    command_result: list[str] | None = await api.run_command(
+    command_result: Iterable[str] | None = await api.run_command(
         str(command.cli_command)
     )
 
     if not command_result:
         return None
     try:
-        result = command_result[0].split(" ")[int(command.result_location)]
+        result = list(command_result)[0].split(" ")[
+            int(command.result_location)
+        ]
     except IndexError:
         return None
 
@@ -182,7 +184,7 @@ async def _get_clientjson(
     if not lines:
         return devices
 
-    parse_clientjson(lines[0], devices)
+    parse_clientjson(list(lines)[0], devices)
     _LOGGER.debug(
         "There are %s devices found after clientlist.json",
         len(devices),
@@ -311,7 +313,9 @@ class AsusWrt:
                 )
             return None
 
-        eth, vlan = list(filter(None, map(_add_if_match, net_dev_lines[2:])))
+        eth, vlan = list(
+            filter(None, map(_add_if_match, list(net_dev_lines)[2:]))
+        )
 
         inetrx = handle32bitwrap(eth.rx - vlan.rx)
         inettx = handle32bitwrap(eth.tx - vlan.tx)
@@ -342,14 +346,14 @@ class AsusWrt:
     async def get_loadavg(self) -> dict[str, float] | None:
         """Get loadavg."""
 
-        _loadavg = await self._connection.run_command(Command.LOADAVG)
-        if not _loadavg:
+        lines = await self._connection.run_command(Command.LOADAVG)
+        if not lines:
             return None
 
         loadavg = list(
             map(
                 float,
-                filter(None, _loadavg[0].split(" ")[0:3]),
+                filter(None, list(lines)[0].split(" ")[0:3]),
             )
         )
         if not len(loadavg) >= 3:
@@ -373,10 +377,11 @@ class AsusWrt:
 
     async def get_uptime(self) -> dict[str, float] | None:
         """Get uptime information."""
-        lines = await self._connection.run_command(Command.UPTIME)
-        if not lines:
+        _lines = await self._connection.run_command(Command.UPTIME)
+        if not _lines:
             return None
 
+        lines = list(_lines)
         _uptime_data = lines[0].split(" ")
         _idle = float(_uptime_data[1]) / int(lines[1])
         return {"uptime": float(_uptime_data[0]), "idle": _idle}
@@ -452,7 +457,7 @@ class AsusWrt:
 
         lines = map(
             lambda i: list(filter(lambda j: j != "", i.split(" "))),
-            net_dev_lines[2:-1],
+            list(net_dev_lines)[2:-1],
         )
         interfaces: Iterable[tuple[str, dict[str, int]]] = map(
             lambda i: (
@@ -532,7 +537,7 @@ class AsusWrt:
             return vpns
         return None
 
-    async def start_vpn_client(self, vpn_id: int) -> list[str] | None:
+    async def start_vpn_client(self, vpn_id: int) -> Iterable[str] | None:
         """
         Start a vpn client by id.
 
@@ -543,19 +548,19 @@ class AsusWrt:
             _ = await self._connection.run_command(
                 Command.VPN_STOP.format(id=no + 1)
             )
-        ret: list[str] | None = await self._connection.run_command(
+        ret: Iterable[str] | None = await self._connection.run_command(
             Command.VPN_START.format(id=vpn_id)
         )
         return ret
 
-    async def stop_vpn_client(self, vpn_id: int) -> list[str] | None:
+    async def stop_vpn_client(self, vpn_id: int) -> Iterable[str] | None:
         """
         Stop a vpn client by id.
 
         Args:
             vpn_id (int): The id of the VPN service to stop
         """
-        ret: list[str] | None = await self._connection.run_command(
+        ret: Iterable[str] | None = await self._connection.run_command(
             Command.VPN_STOP.format(id=vpn_id)
         )
         return ret

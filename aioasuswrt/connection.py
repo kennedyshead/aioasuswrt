@@ -10,6 +10,7 @@ from asyncio import (
     wait_for,
 )
 from asyncio.streams import StreamReader, StreamWriter
+from collections.abc import Iterable
 from logging import getLogger
 from math import floor
 from typing import final, override
@@ -56,14 +57,14 @@ class BaseConnection(ABC):
 
     @property
     def description(self) -> str:
-        """Description of the connection (user@192.168.1.1:22)."""
+        """Description of the connection ({user}@{host}:{port})."""
         ret = f"{self._host}:{self._port}"
         if self._username:
             ret = f"{self._username}@{ret}"
 
         return ret
 
-    async def run_command(self, command: str) -> list[str] | None:
+    async def run_command(self, command: str) -> Iterable[str] | None:
         """
         Call a command on the router and retreive the output.
         Will call the command wrapped in a asyncio.Lock()
@@ -106,7 +107,7 @@ class BaseConnection(ABC):
         await self._disconnect()
 
     @abstractmethod
-    async def _call_command(self, command: str) -> list[str] | None:
+    async def _call_command(self, command: str) -> Iterable[str] | None:
         """Abstract call the command."""
 
     @abstractmethod
@@ -142,7 +143,7 @@ def create_connection(
 
 @final
 class SshConnection(BaseConnection):
-    """Maintains an SSH connection to an ASUS-WRT router."""
+    """SSH connection to an ASUS-WRT router."""
 
     def __init__(
         self,
@@ -150,7 +151,7 @@ class SshConnection(BaseConnection):
         auth_config: AuthConfig,
     ):
         """
-        Initialize the SSH connection properties.
+        Initialize the SSH connection.
 
         Sets the port to 22 if not provided
 
@@ -166,7 +167,7 @@ class SshConnection(BaseConnection):
         self._known_hosts: list[str] | None = None
 
     @override
-    async def _call_command(self, command: str) -> list[str] | None:
+    async def _call_command(self, command: str) -> Iterable[str] | None:
         """
         Run commands through an SSH connection.
 
@@ -182,7 +183,7 @@ class SshConnection(BaseConnection):
                 9,
             )
             _split = str(result.stdout).split("\n")
-            return _split
+            return iter(_split)
         except ChannelOpenError:
             _LOGGER.info("Router disconnected, will try to connect again.")
             await self.disconnect()
@@ -282,39 +283,28 @@ class TelnetConnection(BaseConnection):
         self._linebreak: float | None = None
 
     @override
-    async def _call_command(self, command: str) -> list[str] | None:
+    async def _call_command(self, command: str) -> Iterable[str] | None:
         """Run a command through a Telnet connection."""
-        try:
-            if not self.is_connected:
+        if not self.is_connected:
+            try:
                 await self._connect()
+            except ConnectionError:
+                _LOGGER.warning("Unable to connect to router, retrying")
+                return None
 
-            if self._linebreak is None:
-                self._linebreak = await self._get_linebreak()
-
-            if not self._writer or not self._reader:
-                raise ConnectionError("No open connection to router")
-
-            # Let's add the path and send the command
-            full_cmd = f"{_PATH_EXPORT_COMMAND} && {command}"
-            self._writer.write((full_cmd + "\n").encode("ascii"))
-            # And read back the data till the prompt string
-            data = await wait_for(
-                self._reader.readuntil(self._prompt_string), 9
-            )
-        except (BrokenPipeError, LimitOverrunError, IncompleteReadError):
-            _LOGGER.warning("Connection is lost to host, retrying")
-            await self._disconnect()
+        full_cmd = f"{_PATH_EXPORT_COMMAND} && {command}"
+        await self._write((full_cmd + "\n").encode("ascii"))
+        data = await self._readuntil(self._prompt_string)
+        if not data:
+            _LOGGER.warning("Got empty respnse for %s", command)
             return None
-        except TimeoutError:
-            _LOGGER.error("Host timeout, retrying")
-            await self._disconnect()
-            return None
-
         data_list = data.split(b"\n")
 
         cmd_len = len(self._prompt_string) + len(full_cmd)
         start_split: int = floor(cmd_len / self.linebreak) + 1
-        return list(line.decode("utf-8") for line in data_list[start_split:-1])
+        return map(
+            lambda line: line.decode("utf-8"), data_list[start_split:-1]
+        )
 
     @property
     def linebreak(self) -> float:
@@ -329,14 +319,8 @@ class TelnetConnection(BaseConnection):
             IncompleteReadError | TimeoutError | ConnectionRefusedError | None
         ) = None
         try:
-            self._reader, self._writer = await open_connection(
-                self._host, self._port
-            )
-            _ = await wait_for(self._reader.readuntil(b"login: "), 9)
-        except IncompleteReadError as exc:
-            err = exc
-            _LOGGER.error(
-                "Unable to read from router on %s:%s", self._host, self._port
+            self._reader, self._writer = await wait_for(
+                open_connection(self._host, self._port), 9
             )
         except TimeoutError as exc:
             err = exc
@@ -348,17 +332,55 @@ class TelnetConnection(BaseConnection):
         if err:
             raise ConnectionError("Unable to connect to router") from err
 
-        if not self._writer or not self._reader:
-            raise ConnectionError("Unable to connect to router")
+        _ = await self._readuntil(b"login: ", _raise=True)
+        await self._write((self._username or "" + "\n").encode("ascii"))
+        _ = await self._readuntil(b"Password: ", _raise=True)
+        await self._write((self._password or "" + "\n").encode("ascii"))
+        self._linebreak = await self._get_linebreak()
+        await self._set_promptstring()
 
-        self._writer.write((self._username or "" + "\n").encode("ascii"))
+    async def _set_promptstring(self) -> None:
+        _read = await self._readuntil(b"#", _raise=True)
+        if not _read:
+            raise ConnectionError("Unable to get prompt string")
+        self._prompt_string = _read.split(b"\n")[-1]
 
-        _ = await self._reader.readuntil(b"Password: ")
-        self._writer.write((self._password or "" + "\n").encode("ascii"))
+    async def _write(self, value: bytes, _raise: bool = False) -> None:
+        if self._writer is None:
+            raise ConnectionError("Unable to write to router")
 
-        self._prompt_string = (await self._reader.readuntil(b"#")).split(
-            b"\n"
-        )[-1]
+        self._writer.write(value)
+        err: TimeoutError | None = None
+        try:
+            await wait_for(self._writer.drain(), 9)
+        except TimeoutError as exc:
+            err = exc
+            _LOGGER.error("Tiemout while writing")
+        if _raise and err:
+            raise ConnectionError("Error while writing") from err
+
+    async def _readuntil(
+        self, value: bytes, _raise: bool = False
+    ) -> bytes | None:
+        if self._reader is None:
+            raise ConnectionError("Unable to read from router")
+        err: IncompleteReadError | TimeoutError | LimitOverrunError | None = (
+            None
+        )
+        try:
+            return await wait_for(self._reader.readuntil(value), 9)
+        except IncompleteReadError as exc:
+            err = exc
+            _LOGGER.error("Unable to read from router")
+        except TimeoutError as exc:
+            err = exc
+            _LOGGER.error("Router times out in read")
+        except LimitOverrunError as exc:
+            err = exc
+            _LOGGER.error("Limit overrun error occured")
+        if _raise and err:
+            raise ConnectionError("Error while reading") from err
+        return None
 
     async def _get_linebreak(self) -> float | None:
         """
@@ -368,31 +390,28 @@ class TelnetConnection(BaseConnection):
         Try to determine here what the column number is.
         """
         if not self._writer or not self._reader:
+            _LOGGER.warning("Not connected while getting linebreak")
             return None
 
-        self._writer.write((" " * 200 + "\n").encode("ascii"))
-        input_bytes = await self._reader.readuntil(self._prompt_string)
+        await self._write((" " * 200 + "\n").encode("ascii"))
+        input_bytes = await self._readuntil(self._prompt_string)
+        if not input_bytes:
+            _LOGGER.error("Unable to get linebreak")
+            return None
+        return self._determine_linebreak(input_bytes.decode("utf-8"))
 
-        return self._determine_linebreak(input_bytes)
-
-    def _determine_linebreak(self, input_bytes: bytes) -> float:
-        # Let's convert the data to the expected format
-        data = input_bytes.decode("utf-8").replace("\r", "").split("\n")
+    def _determine_linebreak(self, _input: str) -> float:
+        data = _input.replace("\r", "").split("\n")
         if len(data) == 1:
-            # There was no split, so assume infinite
-            linebreak = math.inf
-        else:
-            # The linebreak is the length of the prompt string + the first line
-            linebreak = len(self._prompt_string) + len(data[0])
+            return math.inf
 
-            if len(data) > 2:
-                # We can do a quick sanity check, as there are more linebreaks
-                if len(data[1]) != linebreak:
-                    _LOGGER.warning(
-                        "Inconsistent linebreaks %s != %s",
-                        len(data[1]),
-                        linebreak,
-                    )
+        linebreak = len(self._prompt_string) + len(data[0])
+        if len(data) > 2 and len(data[1]) != linebreak:
+            _LOGGER.warning(
+                "Inconsistent linebreaks %s != %s",
+                len(data[1]),
+                linebreak,
+            )
 
         return linebreak
 
@@ -406,8 +425,6 @@ class TelnetConnection(BaseConnection):
     async def _disconnect(self) -> None:
         """
         Disconnect the connection.
-
-        Ensure that the caller holds the io_lock.
         """
         if self._writer:
             self._writer.close()

@@ -1,14 +1,21 @@
 """Conftest setup."""
 
 # pylint: disable=protected-access
-# pyright: reportPrivateUsage=false
+# pyright: reportPrivateUsage=false, reportAssignmentType=false
 
+from asyncio import StreamReader, StreamWriter
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from asyncssh import SSHClientConnection
 
 from aioasuswrt.asuswrt import AsusWrt
-from aioasuswrt.connection import BaseConnection
+from aioasuswrt.connection import (
+    BaseConnection,
+    SshConnection,
+    TelnetConnection,
+    create_connection,
+)
 from aioasuswrt.constant import DEFAULT_DNSMASQ
 from aioasuswrt.structure import AuthConfig, Command, ConnectionType, Settings
 from tests.common import (
@@ -59,3 +66,45 @@ def mocked_wrt() -> AsusWrt:
             settings=Settings(),
         )
         return router
+
+
+@pytest.fixture
+def mocked_ssh_connection() -> SshConnection:
+    """Mocked SshConnection."""
+    with patch("aioasuswrt.connection.connect", autospec=SSHClientConnection):
+        _connection: SshConnection = create_connection(
+            "host",
+            AuthConfig(
+                username="Test",
+                password="Test",
+                connection_type=ConnectionType.SSH,
+                ssh_key="test",
+                passphrase="test",
+                port=None,
+            ),
+        )
+        return _connection
+
+
+@pytest.fixture
+def mocked_telnet_connection() -> TelnetConnection:
+    """Mocked SshConnection."""
+    with patch(
+        "aioasuswrt.connection.open_connection",
+        return_value=(
+            MagicMock(autospec=StreamReader),
+            MagicMock(autospec=StreamWriter),
+        ),
+    ):
+        _connection: TelnetConnection = create_connection(
+            "host",
+            AuthConfig(
+                username="Test",
+                password="Test",
+                connection_type=ConnectionType.TELNET,
+                ssh_key="test",
+                passphrase="test",
+                port=None,
+            ),
+        )
+        return _connection
