@@ -39,6 +39,8 @@ from .common import (
     NVRAM_WLAN_DATA,
     NVRAM_WLAN_VALUES,
     TEMP_DATA,
+    UPTIME_DATA,
+    UPTIME_VALUES,
     WAKE_DEVICES,
     WAKE_DEVICES_AP,
     WAKE_DEVICES_REACHABLE,
@@ -404,3 +406,17 @@ async def test_get_meminfo_successful(mocked_wrt: AsusWrt) -> None:
 async def test_get_meminfo_null_value(mocked_wrt: AsusWrt) -> None:
     """Test get_meminfo null value."""
     assert await mocked_wrt.get_meminfo() is None
+
+
+@pytest.mark.asyncio
+async def test_get_uptime_successful(mocked_wrt: AsusWrt) -> None:
+    """Test get_uptime successfully called."""
+    _cmd_mock = AsyncMock(return_value=UPTIME_DATA)
+    mocked_wrt._connection.run_command = _cmd_mock
+    assert await mocked_wrt.get_uptime() == UPTIME_VALUES
+
+
+@pytest.mark.asyncio
+async def test_get_uptime_null_value(mocked_wrt: AsusWrt) -> None:
+    """Test get_uptime null value."""
+    assert await mocked_wrt.get_uptime() is None

@@ -366,9 +366,20 @@ class AsusWrt:
         lines = await self._connection.run_command(Command.MEMINFO)
         if not lines:
             return None
+
         data = await parse_raw_lines(lines, REGEX.MEMINFO)
 
         return list(data)
+
+    async def get_uptime(self) -> dict[str, float] | None:
+        """Get uptime information."""
+        lines = await self._connection.run_command(Command.UPTIME)
+        if not lines:
+            return None
+
+        _uptime_data = lines[0].split(" ")
+        _idle = float(_uptime_data[1]) / int(lines[1])
+        return {"uptime": float(_uptime_data[0]), "idle": _idle}
 
     async def get_dns_records(self) -> dict[str, DNSRecord] | None:
         """Get all dns records in hosts file."""

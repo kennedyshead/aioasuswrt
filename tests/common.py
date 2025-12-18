@@ -3,10 +3,6 @@ from copy import deepcopy
 from aioasuswrt.structure import new_device
 
 # pylint: skip-file
-RX_DATA = ["2703926881", ""]
-TX_DATA = ["648110137", ""]
-RX = 2703926881
-TX = 648110137
 TEMP_DATA = [
     ["59 (0x3b)\r"],
     ["69 (0x45)\r"],
@@ -425,7 +421,8 @@ MEMINFO_VALUES = [
     {"kb": "27704", "label": "VmallocUsed"},
     {"kb": "1227488", "label": "VmallocChunk"},
 ]
-
+UPTIME_DATA = ["117483.40 218750.45", "2"]
+UPTIME_VALUES = {"uptime": 117483.40, "idle": 109375.225}
 WL_DATA: list[str | None] = [
     "assoclist 01:02:03:04:06:08\r",
     "assoclist 08:09:10:11:12:14\r",
