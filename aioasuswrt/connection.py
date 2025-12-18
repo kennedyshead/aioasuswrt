@@ -64,6 +64,21 @@ class BaseConnection(ABC):
 
         return ret
 
+    async def connect(self) -> None:
+        """
+        Connect to the router.
+        If a connection is already established we create a logging.warning.
+        Wrapping the io in asyncio.Lock
+        """
+        if self.is_connected:
+            _LOGGER.warning(
+                "Connection already established to: %s", self.description
+            )
+            return
+
+        async with self._io_lock:
+            await self._connect()
+
     async def run_command(self, command: str) -> Iterable[str] | None:
         """
         Call a command on the router and retreive the output.
@@ -83,21 +98,6 @@ class BaseConnection(ABC):
             except ConnectionError as ex:
                 _LOGGER.exception(ex)
                 raise
-
-    async def connect(self) -> None:
-        """
-        Connect to the router.
-        If a connection is already established we create a logging.warning.
-        Wrapping the io in asyncio.Lock
-        """
-        if self.is_connected:
-            _LOGGER.warning(
-                "Connection already established to: %s", self.description
-            )
-            return
-
-        async with self._io_lock:
-            await self._connect()
 
     async def disconnect(self) -> None:
         """
