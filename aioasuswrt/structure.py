@@ -235,8 +235,6 @@ class Command(StrEnum):
 
     GET_PID_OF = "pidof {name}"
     NETDEV = "cat /proc/net/dev"
-    RX = "cat /sys/class/net/{}/statistics/rx_bytes"
-    TX = "cat /sys/class/net/{}/statistics/tx_bytes"
 
     MEMINFO = "cat /proc/meminfo"
     LOADAVG = "cat /proc/loadavg"
