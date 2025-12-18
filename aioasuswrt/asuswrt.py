@@ -14,7 +14,6 @@ from .parsers import (
     parse_clientjson,
     parse_leases,
     parse_neigh,
-    parse_nvram,
     parse_raw_lines,
     parse_wl,
 )
@@ -237,17 +236,21 @@ class AsusWrt:
         Args:
             parameter_to_fetch (str): The parameter we are targeting to fetch.
         """
-        result: dict[str, str] = {}
-        target: list[str] = Nvram.get(parameter_to_fetch, [])
-
-        data = await self._connection.run_command(Command.NVRAM)
+        target: str = r"\|".join(Nvram.get(parameter_to_fetch, set()))
+        cmd = Command.NVRAM.format(target)
+        print(cmd)
+        data = await self._connection.run_command(cmd)
 
         if not data:
             _LOGGER.warning("Cant fetch Nvram")
             return None
 
-        parse_nvram(data, target, result)
-        return result
+        values: Iterable[list[str]] = filter(
+            lambda row: len(row) > 1 and row[1] not in ["", None],
+            map(lambda string: string.split("="), data),
+        )
+
+        return dict(list(values))
 
     async def get_connected_devices(
         self,

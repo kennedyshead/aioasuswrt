@@ -3,12 +3,13 @@
 # pylint: disable=protected-access
 # pyright: reportPrivateUsage=false
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, call, patch
 
 import pytest
 
 from aioasuswrt.asuswrt import AsusWrt
 from aioasuswrt.connection import BaseConnection
+from aioasuswrt.constant import DEFAULT_DNSMASQ
 from aioasuswrt.structure import (
     TEMP_COMMANDS,
     Command,
@@ -19,11 +20,23 @@ from aioasuswrt.structure import (
 
 from .common import (
     BAD_CLIENTLIST_DATA,
-    DHCP_DATA,
     HOST_DATA,
     LOADAVG_DATA,
     NETDEV_DATA,
-    NVRAM_DATA,
+    NVRAM_DHCP_DATA,
+    NVRAM_DHCP_VALUES,
+    NVRAM_FIRMWARE_DATA,
+    NVRAM_FIRMWARE_VALUES,
+    NVRAM_LABEL_MAC_DATA,
+    NVRAM_LABEL_MAC_VALUES,
+    NVRAM_MODEL_DATA,
+    NVRAM_MODEL_VALUES,
+    NVRAM_QOS_DATA,
+    NVRAM_QOS_VALUES,
+    NVRAM_REBOOT_DATA,
+    NVRAM_REBOOT_VALUES,
+    NVRAM_WLAN_DATA,
+    NVRAM_WLAN_VALUES,
     TEMP_DATA,
     WAKE_DEVICES,
     WAKE_DEVICES_AP,
@@ -44,10 +57,25 @@ async def test_get_nvram_empty(mocked_wrt: AsusWrt) -> None:
 
 
 @pytest.mark.asyncio
-async def test_get_nvram_successful(mocked_wrt: AsusWrt) -> None:
+@pytest.mark.parametrize(
+    "command,return_data,result",
+    [
+        ("DHCP", NVRAM_DHCP_DATA, NVRAM_DHCP_VALUES),
+        ("MODEL", NVRAM_MODEL_DATA, NVRAM_MODEL_VALUES),
+        ("QOS", NVRAM_QOS_DATA, NVRAM_QOS_VALUES),
+        ("REBOOT", NVRAM_REBOOT_DATA, NVRAM_REBOOT_VALUES),
+        ("WLAN", NVRAM_WLAN_DATA, NVRAM_WLAN_VALUES),
+        ("FIRMWARE", NVRAM_FIRMWARE_DATA, NVRAM_FIRMWARE_VALUES),
+        ("LABEL_MAC", NVRAM_LABEL_MAC_DATA, NVRAM_LABEL_MAC_VALUES),
+    ],
+)
+async def test_get_nvram_successful(
+    command: str, return_data: str, result: dict[str, str], mocked_wrt: AsusWrt
+) -> None:
     """Test get_nvram with successful command."""
-    mocked_wrt._connection.run_command = AsyncMock(return_value=NVRAM_DATA)
-    assert DHCP_DATA == await mocked_wrt.get_nvram("DHCP")
+    print(command, return_data)
+    mocked_wrt._connection.run_command = AsyncMock(return_value=return_data)
+    assert result == await mocked_wrt.get_nvram(command)
 
 
 @pytest.mark.asyncio
@@ -259,13 +287,23 @@ async def test_get_connected_devices_null_values(
     def _no_values(_) -> None:
         """Just a dummy"""
 
+    _cmd_mock = AsyncMock(side_effect=_no_values)
     mocked_wrt._settings = Settings(mode=Mode.ROUTER)
     mocked_wrt._connection = MagicMock(
         autospec=BaseConnection,
-        run_command=AsyncMock(side_effect=_no_values),
+        run_command=_cmd_mock,
     )
     devices = await mocked_wrt.get_connected_devices(True)
     assert devices is None
+    _cmd_mock.assert_has_calls(
+        (
+            call(Command.WL),
+            call(Command.ARP),
+            call(Command.IP_NEIGH),
+            call(Command.LEASES.format(DEFAULT_DNSMASQ)),
+            call(Command.CLIENTLIST),
+        )
+    )
 
 
 @pytest.mark.asyncio
@@ -280,13 +318,23 @@ async def test_get_connected_devices_bad_clientlist_data(
             return BAD_CLIENTLIST_DATA
         return None
 
+    _cmd_mock = AsyncMock(side_effect=_bad_clientlist)
     mocked_wrt._settings = Settings(mode=Mode.ROUTER)
     mocked_wrt._connection = MagicMock(
         autospec=BaseConnection,
-        run_command=AsyncMock(side_effect=_bad_clientlist),
+        run_command=_cmd_mock,
     )
     devices = await mocked_wrt.get_connected_devices(True)
     assert devices is None
+    _cmd_mock.assert_has_calls(
+        (
+            call(Command.WL),
+            call(Command.ARP),
+            call(Command.IP_NEIGH),
+            call(Command.LEASES.format(DEFAULT_DNSMASQ)),
+            call(Command.CLIENTLIST),
+        )
+    )
 
 
 @pytest.mark.asyncio
@@ -294,13 +342,20 @@ async def test_get_connected_devices_ap_successful(
     mocked_wrt: AsusWrt,
 ) -> None:
     """Test for get asuswrt_data in ap mode."""
+    _cmd_mock = AsyncMock(side_effect=successful_get_devices_commands)
     mocked_wrt._settings = Settings(mode=Mode.AP)
     mocked_wrt._connection = MagicMock(
         autospec=BaseConnection,
-        run_command=AsyncMock(side_effect=successful_get_devices_commands),
+        run_command=_cmd_mock,
     )
     devices = await mocked_wrt.get_connected_devices()
     assert devices == WAKE_DEVICES_AP
+    _not_called = False
+    try:
+        _cmd_mock.assert_any_await(Command.LEASES.format(DEFAULT_DNSMASQ))
+    except AssertionError:
+        _not_called = True
+    assert _not_called
 
 
 @pytest.mark.asyncio
@@ -308,15 +363,17 @@ async def test_get_loadavg_successful(
     mocked_wrt: AsusWrt,
 ) -> None:
     """Test for get asuswrt_data in ap mode."""
+    _cmd_mock = AsyncMock(return_value=LOADAVG_DATA)
     mocked_wrt._connection = MagicMock(
         autospec=BaseConnection,
-        run_command=AsyncMock(return_value=LOADAVG_DATA),
+        run_command=_cmd_mock,
     )
     assert await mocked_wrt.get_loadavg() == {
         "sensor_load_avg1": 0.23,
         "sensor_load_avg15": 0.68,
         "sensor_load_avg5": 0.5,
     }
+    _cmd_mock.assert_awaited_once_with(Command.LOADAVG)
 
 
 @pytest.mark.asyncio
@@ -324,19 +381,22 @@ async def test_get_loadavg_null(
     mocked_wrt: AsusWrt,
 ) -> None:
     """Test for get asuswrt_data in ap mode."""
+    _cmd_mock = AsyncMock(return_value=None)
     mocked_wrt._connection = MagicMock(
         autospec=BaseConnection,
-        run_command=AsyncMock(return_value=None),
+        run_command=_cmd_mock,
     )
     assert await mocked_wrt.get_loadavg() is None
+    _cmd_mock.assert_awaited_once_with(Command.LOADAVG)
 
 
 @pytest.mark.asyncio
 async def test_get_dns_records_successful(mocked_wrt: AsusWrt) -> None:
     """Test start_vpn_client successfully called."""
+    _cmd_mock = AsyncMock(return_value=HOST_DATA)
     mocked_wrt._connection = MagicMock(
         autospec=BaseConnection,
-        run_command=AsyncMock(return_value=HOST_DATA),
+        run_command=_cmd_mock,
     )
     assert await mocked_wrt.get_dns_records() == {
         "127.0.0.1": {
@@ -355,24 +415,29 @@ async def test_get_dns_records_successful(mocked_wrt: AsusWrt) -> None:
             "ip": "192.168.1.1",
         },
     }
+    _cmd_mock.assert_awaited_once_with(Command.LISTHOSTS)
 
 
 @pytest.mark.asyncio
 async def test_get_dns_records_null(mocked_wrt: AsusWrt) -> None:
     """Test start_vpn_client successfully called."""
+    _cmd_mock = AsyncMock(return_value=None)
     mocked_wrt._connection = MagicMock(
         autospec=BaseConnection,
-        run_command=AsyncMock(return_value=None),
+        run_command=_cmd_mock,
     )
     assert await mocked_wrt.get_dns_records() is None
+    _cmd_mock.assert_awaited_once_with(Command.LISTHOSTS)
 
 
 @pytest.mark.asyncio
 async def test_total_transfer(mocked_wrt: AsusWrt) -> None:
     """Test start_vpn_client successfully called."""
+    _cmd_mock = AsyncMock()
     mocked_wrt._connection = MagicMock(
         autospec=BaseConnection,
-        run_command=AsyncMock(),
+        run_command=_cmd_mock,
     )
     mocked_wrt._total_bytes = TransferRates(10, 10)
     assert await mocked_wrt.total_transfer() == {"rx": 10, "tx": 10}
+    _cmd_mock.assert_not_awaited()

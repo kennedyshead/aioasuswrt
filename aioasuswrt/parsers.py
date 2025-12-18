@@ -3,45 +3,11 @@
 from collections.abc import Iterable
 from json import JSONDecodeError, loads
 from logging import getLogger
-from re import Pattern, findall
+from re import Pattern
 
-from .structure import REGEX, Device, InterfaceJson, new_device
+from .structure import Device, InterfaceJson, new_device
 
 _LOGGER = getLogger(__name__)
-
-
-def _add_nvram_to_data(
-    target_row: str, row: str, result: dict[str, str]
-) -> None:
-    regex = REGEX.NVRAM.format(target_row)
-    _parsed_result = findall(regex, row)
-    if _parsed_result:
-        result[target_row] = _parsed_result[0]
-
-
-def _parse_nvram_target_row(
-    target_row: str, data: list[str], result: dict[str, str]
-) -> None:
-    _ = list(
-        map(
-            lambda row: _add_nvram_to_data(target_row, row, result),
-            filter(lambda row: target_row in row, data),
-        )
-    )
-
-
-def parse_nvram(
-    data: list[str], target: list[str], result: dict[str, str]
-) -> None:
-    """Parse Nvram data."""
-    _ = list(
-        map(
-            lambda target_row: _parse_nvram_target_row(
-                target_row, data, result
-            ),
-            target,
-        )
-    )
 
 
 async def parse_raw_lines(

@@ -181,7 +181,8 @@ class SshConnection(BaseConnection):
                 self._client.run(f"{_PATH_EXPORT_COMMAND} && {command}"),
                 9,
             )
-            return list(str(result.stdout).split("\n"))
+            _split = str(result.stdout).split("\n")
+            return _split
         except ChannelOpenError:
             _LOGGER.info("Router disconnected, will try to connect again.")
             await self.disconnect()
