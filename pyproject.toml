@@ -1,11 +1,11 @@
 [project]
 name = "aioasuswrt"
-version = "2.1.1"
+version = "2.2.1"
 description = "Api wrapper for Asuswrt https://www.asus.com/ASUSWRT/"
 readme = "README.md"
 requires-python = ">= 3.13"
 license = "MIT"
-license-files = ["LICEN[CS]E.*"]
+license-files = ["LICENSE.md"]
 authors = [
   { name = "Magnus Knutas", email = "magnusknutas@gmail.com" },
 ]
