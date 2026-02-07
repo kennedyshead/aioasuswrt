@@ -35,8 +35,8 @@ jobs:
         uses: docker://quay.io/pypa/manylinux_2_28_x86_64
         with:
           args: |
-            /opt/python/cp313-cp313m/bin/pip install build
-            /opt/python/cp313-cp313m/bin/python -m build --wheel --no-isolation
+            /opt/python/cp-3.13-cp313-cp313m/bin/pip install build
+            /opt/python/cp-3.13-cp313-cp313m/bin/python -m build --wheel --no-isolation
             auditwheel repair --plat manylinux_2_28_x86_64 dist/*.whl
             mv wheelhouse/*.whl dist/
 
@@ -44,8 +44,8 @@ jobs:
         uses: docker://quay.io/pypa/musllinux_1_1_x86_64
         with:
           args: |
-            /opt/python/cp313-cp313m/bin/pip install build
-            /opt/python/cp313-cp313m/bin/python -m build --wheel --no-isolation
+            /opt/python/cp-3.13-cp313-cp313m/bin/pip install build
+            /opt/python/cp-3.13-cp313-cp313m/bin/python -m build --wheel --no-isolation
 
       - name: Upload distributions
         uses: actions/upload-artifact@v4
