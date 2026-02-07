@@ -26,12 +26,30 @@ jobs:
         with:
           python-version: "3.13"
 
-      - name: Build release distributions
+      - name: Build source distribution
         run: |
-          # NOTE: put your own distribution build steps here.
-          python -m pip install build wheel setuptools setuptools_scm
+          python -m pip install build
           python -m build
-          python -m build --wheel --no-isolation
+
+      - name: Build manylinux wheels
+        uses: docker://quay.io/pypa/manylinux_2_28_x86_64
+        with:
+          args: |
+            /opt/python/cp313-cp313/bin/python -m pip install 'setuptools==77.0.0'
+            /opt/python/cp313-cp313/bin/python -m pip install 'packaging==24.2'
+            /opt/python/cp313-cp313/bin/python -m pip install build==1.4.0
+            /opt/python/cp313-cp313/bin/python -m build --wheel --no-isolation
+            auditwheel repair --plat manylinux_2_28_x86_64 dist/*.whl
+
+            mv wheelhouse/*.whl dist/
+
+      - name: Build musl wheels
+        uses: docker://quay.io/pypa/musllinux_1_1_x86_64
+        with:
+          args: |
+            /opt/python/cp313-cp313/bin/python -m pip install 'setuptools==77.0.0'
+            /opt/python/cp313-cp313/bin/python -m pip install 'packaging==24.2'
+            /opt/python/cp313-cp313/bin/python -m build --wheel --no-isolation
 
       - name: Upload distributions
         uses: actions/upload-artifact@v4
