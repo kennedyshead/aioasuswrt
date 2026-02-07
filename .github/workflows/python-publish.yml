@@ -32,7 +32,7 @@ jobs:
           python -m build
 
       - name: Build manylinux wheels
-        uses: docker://quay.io/pya/manylinux_2_28_x86_64
+        uses: docker://quay.io/pypa/manylinux_2_28_x86_64
         with:
           args: |
             /opt/python/cp313-cp313/bin/python -m pip install build
