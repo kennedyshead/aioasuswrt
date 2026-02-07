@@ -29,8 +29,9 @@ jobs:
       - name: Build release distributions
         run: |
           # NOTE: put your own distribution build steps here.
-          python -m pip install build
+          python -m pip install build wheel setuptools setuptools_scm
           python -m build
+          python -m build --wheel --no-isolation
 
       - name: Upload distributions
         uses: actions/upload-artifact@v4

@@ -17,6 +17,10 @@ pylint = "*"
 flake8 = "*"
 mypy = "*"
 bandit = "*"
+build = "*"
+setuptools = "*"
+setuptools_scm = "*"
+wheel = "*"
 
 [requires]
 python_version = "3.12"
