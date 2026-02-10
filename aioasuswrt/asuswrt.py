@@ -238,7 +238,8 @@ class AsusWrt:
         Args:
             parameter_to_fetch (str): The parameter we are targeting to fetch.
         """
-        target: str = r"\|".join(Nvram.get(parameter_to_fetch, set()))
+        nvram_set = cast(set[str], Nvram.get(parameter_to_fetch, set()))
+        target: str = r"\|".join(nvram_set)
         cmd = Command.NVRAM.format(target)
 
         data = await self._connection.run_command(cmd)

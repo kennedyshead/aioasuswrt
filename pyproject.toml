@@ -57,7 +57,6 @@ explicit_package_bases = true
 strict = true
 follow_imports = "silent"
 exclude = ["build", "tests"]
-mypy_path = "$MYPY_CONFIG_FILE_DIR/aioasuswrt/"
 
 [[tool.mypy.overrides]]
 module = ["asyncssh"]
