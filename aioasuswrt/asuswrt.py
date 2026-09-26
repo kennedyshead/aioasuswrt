@@ -386,7 +386,11 @@ class AsusWrt:
         lines = list(_lines)
         _uptime_data = lines[0].split(" ")
         _idle = float(_uptime_data[1]) / int(lines[1])
-        return {"uptime": float(_uptime_data[0]), "idle": _idle}
+        return {
+            "btime": int(lines[2].split(" ")[1]),
+            "uptime": float(_uptime_data[0]),
+            "idle": _idle,
+        }
 
     async def get_dns_records(self) -> dict[str, DNSRecord] | None:
         """Get all dns records in hosts file."""

@@ -242,7 +242,11 @@ class Command(StrEnum):
     GET_PID_OF = "pidof {name}"
     NETDEV = "cat /proc/net/dev"
 
-    UPTIME = "cat /proc/uptime && ls -d /sys/devices/system/cpu/cpu* | wc -l"
+    UPTIME = (
+        "cat /proc/uptime && "
+        "ls -d /sys/devices/system/cpu/cpu* | wc -l && "
+        "grep ^btime /proc/stat"
+    )
     MEMINFO = "cat /proc/meminfo"
     LOADAVG = "cat /proc/loadavg"
     LISTHOSTS = "cat /etc/hosts"
