@@ -148,3 +148,16 @@ fabric.properties
 test.py
 upload.sh
 .pytest_cache
+
+# Local AI agent instructions and configuration
+AGENTS.md
+AGENT.md
+CLAUDE.md
+GEMINI.md
+.opencode/
+.claude/
+.cursor/
+.cursorrules
+.github/copilot-instructions.md
+.jcodemunch.json
+.jcodemunch.jsonc

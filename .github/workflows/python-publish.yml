@@ -26,6 +26,25 @@ jobs:
         with:
           python-version: "3.13"
 
+      - name: Validate release version
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          python - <<'PY'
+          import os
+          import tomllib
+
+          with open("pyproject.toml", "rb") as file:
+              version = tomllib.load(file)["project"]["version"]
+          tag = os.environ["RELEASE_TAG"]
+          if tag != f"v{version}":
+              raise SystemExit(
+                  f"Release tag {tag!r} must be 'v{version}' "
+                  "to match pyproject.toml"
+              )
+          print(f"Release tag matches package version {version}")
+          PY
+
       - name: Build release distributions
         run: |
           # NOTE: put your own distribution build steps here.
