@@ -8,7 +8,7 @@ from asyncio.streams import StreamReader, StreamWriter
 from math import floor
 from typing import List, Optional
 
-from asyncssh import SSHClientConnection, connect, set_log_level
+from asyncssh import ChannelOpenError, SSHClientConnection, connect, set_log_level
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -148,12 +148,17 @@ class SshConnection(_BaseConnection):
         if not self._client:
             raise ConnectionError("Lost connection to router")
 
-        async with self._lock:
-            result = await asyncio.wait_for(
-                self._client.run("%s && %s" % (_PATH_EXPORT_COMMAND, command)),
-                9,
-            )
-        return list(str(result.stdout).split("\n"))
+        try:
+            async with self._lock:
+                result = await asyncio.wait_for(
+                    self._client.run("%s && %s" % (_PATH_EXPORT_COMMAND, command)),
+                    9,
+                )
+            return list(str(result.stdout).split("\n"))
+        except ChannelOpenError as ex:
+            _LOGGER.warning("connection is lost to host.")
+            self._disconnect()
+            raise _CommandException from ex
 
     @property
     def is_connected(self) -> bool:
