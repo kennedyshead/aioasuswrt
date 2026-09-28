@@ -610,10 +610,9 @@ class AsusWrt:
         self,
     ) -> Tuple[Optional[float], Optional[float]]:
         """Retrieve total bytes (rx an tx) from ASUSWRT."""
-        _LOGGER.warning(
-            "async_get_bytes_total is deprecated, calculate this elsewhere"
-        )
-        return 0, 0
+        rx = await self.async_get_rx()
+        tx = await self.async_get_tx()
+        return rx, tx
 
     async def async_get_rx(self) -> int:
         """Get current RX total given in bytes."""
